@@ -1,0 +1,27 @@
+[package]
+name = "smoltcp_openvpn_bridge"
+version = "0.1.0"
+authors = ["lz <me@lucaszanella.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+log = { version = "0.4.4", default-features = false, optional = true }
+libc = { version = "0.2.18", optional = true }
+
+[dev-dependencies]
+env_logger = "0.5"
+getopts = "0.2"
+rand = "0.3"
+url = "1.0"
+log = "0.4.4"
+
+[dependencies.smoltcp]
+git = "https://github.com/lucaszanella/smoltcp/"
+rev = "8f9102a3ff6af18d8161f2d69102bffa1aebe6ba"
+features = ["std", "phy-tun_interface", "proto-ipv4", "proto-ipv6", "socket-tcp"]
+
+[[example]]
+name = "virtual_tun_http"
+required-features = ["log"]
