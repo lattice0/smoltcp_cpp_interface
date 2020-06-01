@@ -26,36 +26,24 @@ static mut onDataCallback_: Option<OnDataCallback> = None;
 
 #[repr(C)]
 pub struct CIpv4Address {
-    pub address: *mut u8
-    pub cidr: *mut u8
+    pub address: [u8; 4],
 }
 
 #[repr(C)]
 pub struct CIpv6Address {
-    pub address: *mut u8
-    pub cidr: *mut u8
+    pub address: [u16; 8],
 }
 
 #[repr(C)]
 pub struct CIpv4Cidr {
-    pub address: *mut CIpv4Address
-    pub cidr: *mut u8
+    pub address: CIpv4Address,
+    pub prefix: u32
 }
 
 #[repr(C)]
 pub struct CIpv6Cidr {
-    pub address: *mut CIpv6Address
-    pub cidr: *mut u8
-}
-
-#[repr(C)]
-pub struct VPNParameters {
-    pub ipv4_addresses: *mut CIpv4Cidr,
-    pub ipv4_addresses_size: c_int,
-    pub ipv6_addresses: *mut CIpv4Cidr,
-    pub ipv6_addresses_size: c_int,
-    pub default_ipv4_gateway: *mut CIpv4Address,
-    pub default_ipv6_gateway: *mut CIpv6Address,
+    pub address: CIpv6Address,
+    pub prefix: u64
 }
 
 #[no_mangle]
