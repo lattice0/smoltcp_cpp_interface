@@ -1,3 +1,9 @@
-mod virtual_tun;
-
-pub use self::virtual_tun::VirtualTunInterface;
+//extern crate log;
+//extern crate env_logger;
+//extern crate getopts;
+//extern crate rand;
+//extern crate url;
+extern crate smoltcp;
+pub mod virtual_tun;
+pub mod interface;
+pub mod smol_stack;

@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 log = { version = "0.4.4", default-features = false, optional = true }
 libc = { version = "0.2.18", optional = true }
+smoltcp = { path = "../../smoltcp_merge/smoltcp" }
 
 [dev-dependencies]
 env_logger = "0.5"
@@ -17,10 +18,10 @@ rand = "0.3"
 url = "1.0"
 log = "0.4.4"
 
-[dependencies.smoltcp]
-git = "https://github.com/lucaszanella/smoltcp/"
-rev = "8f9102a3ff6af18d8161f2d69102bffa1aebe6ba"
-features = ["std", "phy-tun_interface", "proto-ipv4", "proto-ipv6", "socket-tcp"]
+#[dependencies.smoltcp]
+#git = "https://github.com/lucaszanella/smoltcp/"
+#rev = "8f9102a3ff6af18d8161f2d69102bffa1aebe6ba"
+#features = ["std", "phy-tun_interface", "proto-ipv4", "proto-ipv6", "socket-tcp"]
 
 [[example]]
 name = "virtual_tun_http"

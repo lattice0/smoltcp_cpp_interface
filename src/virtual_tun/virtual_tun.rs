@@ -9,7 +9,7 @@ use std::io;
 use std::collections::VecDeque;
 
 use smoltcp::{Result, Error};
-use smoltcp::phy::{self, DeviceCapabilities, Device};
+use smoltcp::phy::{self, DeviceCapabilities, Device, Medium};
 use smoltcp::time::Instant;
 
 use std::isize;
@@ -153,6 +153,10 @@ impl<'a> Device<'a> for VirtualTunInterface {
         Some(TxToken {
             lower: Rc::new(RefCell::new(self.clone())),
         })
+    }
+
+    fn medium(&self) -> Medium {
+        Medium::Ip
     }
 }
 
