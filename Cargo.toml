@@ -9,7 +9,8 @@ edition = "2018"
 [dependencies]
 log = { version = "0.4.4", default-features = false, optional = true }
 libc = { version = "0.2.18", optional = true }
-smoltcp = { path = "../../smoltcp_merge/smoltcp" }
+smoltcp = {git = "https://github.com/lucaszanella/smoltcp/", branch="ip-interface-alt-managed"}
+#smoltcp = { path = "../../smoltcp_merge/smoltcp" }
 
 [dev-dependencies]
 env_logger = "0.5"
