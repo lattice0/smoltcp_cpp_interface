@@ -6,10 +6,10 @@ use smoltcp::phy::{self, Device};
 use smoltcp::socket::{SocketSet, TcpSocket, TcpSocketBuffer, UdpSocket, UdpSocketBuffer, RawSocket, RawSocketBuffer};
 use std::collections::BTreeMap;
 
-pub struct TunSmolStack<'a, 'b, 'c, 'd, 'e, 'f> {
-    device: TunDevice,
+pub struct TunSmolStack<'a, 'b, 'c> {
+    //device: TunDevice,
     sockets: SocketSet<'a, 'b, 'c >,
-    interface: Interface<'d, 'e, 'f, TunDevice>
+    //interface: Interface<'d, 'e, 'f, TunDevice>
 }
 
 pub enum SocketType {
@@ -19,8 +19,8 @@ pub enum SocketType {
 }
 
 //TODO: why I cant do TunSmolStack<'a, 'b, 'c, 'e, DeviceT: for<'d> Device<'d>>?
-impl<'a, 'b, 'c, 'd, 'e, 'f> TunSmolStack<'a, 'b, 'c, 'd, 'e, 'f> {
-    pub fn new(interface_name: String) -> Result<TunSmolStack<'a, 'b, 'c, 'd, 'e, 'f>, u32> {
+impl<'a, 'b, 'c> TunSmolStack<'a, 'b, 'c> {
+    pub fn new(interface_name: String) -> Result<TunSmolStack<'a, 'b, 'c>, u32> {
         let device = TunDevice::new("tun").unwrap();
         //let rx_buffer = TcpSocketBuffer::new(vec![0; 1024]);
         //let tx_buffer = TcpSocketBuffer::new(vec![0; 1024]);
@@ -31,13 +31,13 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> TunSmolStack<'a, 'b, 'c, 'd, 'e, 'f> {
             .neighbor_cache(neighbor_cache)
             .finalize();
         Ok(TunSmolStack {
-            device: device,
+            //device: device,
             sockets: socket_set,
-            interface: interface,
+            //interface: interface,
         })
     }
 
-    pub fn add_socket(mut self, socket_type: SocketType) -> usize {
+    pub fn add_socket(&mut self, socket_type: SocketType) -> usize {
         match socket_type {
             SocketType::TCP => {
                 let rx_buffer = TcpSocketBuffer::new(vec![0; 1024]);
@@ -65,19 +65,19 @@ impl<'a, 'b, 'c, 'd, 'e, 'f> TunSmolStack<'a, 'b, 'c, 'd, 'e, 'f> {
         0
     }
 
-    pub fn add_ipv4_address(mut self, cidr: CIpv4Cidr) -> Self {
-        self
+    pub fn add_ipv4_address(&mut self, cidr: CIpv4Cidr) -> Self {
+        *self
     }
 
-    pub fn add_ipv6_address(mut self, cidr: CIpv6Cidr) -> Self {
-        self
+    pub fn add_ipv6_address(&mut self, cidr: CIpv6Cidr) -> Self {
+        *self
     }
 
-    pub fn add_default_v4_gateway(mut self, ipv4_address: CIpv4Address) -> Self {
-        self
+    pub fn add_default_v4_gateway(&mut self, ipv4_address: CIpv4Address) -> Self {
+        *self
     }
 
-    pub fn add_default_v6_gateway(mut self, ipv4_address: CIpv6Address) -> Self {
-        self
+    pub fn add_default_v6_gateway&(mut self, ipv4_address: CIpv6Address) -> Self {
+        *self
     }
 }
