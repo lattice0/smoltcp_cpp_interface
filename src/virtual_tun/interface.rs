@@ -14,6 +14,14 @@ type OnDataCallback = unsafe extern "C" fn(data: *mut u8, len: usize) -> c_int;
 
 static mut onDataCallback_: Option<OnDataCallback> = None;
 
+/*
+#[repr(C)]
+pub struct CSocketHandleResult {
+    pub ok: bool,
+    pub handle: usize,
+}
+*/
+
 #[repr(C)]
 pub struct CIpv4Address {
     pub address: [u8; 4],

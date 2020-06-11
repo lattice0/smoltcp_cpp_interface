@@ -13,10 +13,10 @@ use std::collections::BTreeMap;
 use url::Url;
 //use smoltcp::phy::wait as phy_wait;
 use smoltcp::wire::{Ipv4Address, Ipv6Address, IpAddress, IpCidr};
-use smoltcp::iface::{NeighborCache, TunInterfaceBuilder, Routes};
+use smoltcp::iface::{NeighborCache, InterfaceBuilder, Routes};
 use smoltcp::socket::{SocketSet, TcpSocket, TcpSocketBuffer};
 use smoltcp::time::Instant;
-use smoltcp_openvpn_bridge::virtual_tun::VirtualTunInterface;
+use smoltcp_openvpn_bridge::VirtualTunInterface;
 
 fn main() {
     utils::setup_logging("");
@@ -50,13 +50,14 @@ fn main() {
     let mut routes = Routes::new(&mut routes_storage[..]);
     routes.add_default_ipv4_route(default_v4_gw).unwrap();
     routes.add_default_ipv6_route(default_v6_gw).unwrap();
-    let mut iface = TunInterfaceBuilder::new(device)
+    let mut iface = InterfaceBuilder::new(device)
             .neighbor_cache(neighbor_cache)
             .ip_addrs(ip_addrs)
             .routes(routes)
             .finalize();
 
     let mut sockets = SocketSet::new(vec![]);
+    
     let tcp_handle = sockets.add(tcp_socket);
 
     enum State { Connect, Request, Response };

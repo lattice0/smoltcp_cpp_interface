@@ -9,8 +9,9 @@ edition = "2018"
 [dependencies]
 log = { version = "0.4.4", default-features = false, optional = true }
 libc = { version = "0.2.18", optional = true }
-smoltcp = {git = "https://github.com/lucaszanella/smoltcp/", branch="ip-interface-alt-managed"}
-#smoltcp = { path = "../../smoltcp_merge/smoltcp" }
+#smoltcp = {git = "https://github.com/lucaszanella/smoltcp/", branch="ip-interface-alt-managed"}
+smoltcp = { path = "../../smoltcp_merge/smoltcp" }
+#managed = { git = "https://github.com/smoltcp-rs/rust-managed", features = ["map"] }
 
 [dev-dependencies]
 env_logger = "0.5"
@@ -26,4 +27,8 @@ log = "0.4.4"
 
 [[example]]
 name = "virtual_tun_http"
+required-features = ["log"]
+
+[[example]]
+name = "lab"
 required-features = ["log"]

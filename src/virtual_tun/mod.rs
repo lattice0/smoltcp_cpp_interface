@@ -7,3 +7,5 @@ extern crate smoltcp;
 pub mod virtual_tun;
 pub mod interface;
 pub mod smol_stack;
+
+pub use virtual_tun::VirtualTunInterface;
