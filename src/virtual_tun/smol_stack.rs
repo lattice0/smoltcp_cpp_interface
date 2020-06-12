@@ -1,11 +1,11 @@
 //use smoltcp_openvpn_bridge::virtual_tun::VirtualTunInterface;
 use super::interface::{CIpv4Address, CIpv4Cidr, CIpv6Address, CIpv6Cidr};
 use super::virtual_tun::VirtualTunInterface as TunDevice;
-use smoltcp::iface::{NeighborCache, Interface, InterfaceBuilder};
+use smoltcp::iface::{NeighborCache, Interface, InterfaceBuilder, Routes, NeighborCache};
 use smoltcp::phy::{self, Device};
-use smoltcp::wire::{IpEndpoint, IpVersion, IpProtocol};
+use smoltcp::wire::{IpEndpoint, IpVersion, IpProtocol, IpCidr, Ipv4Address, Ipv6Address};
 use smoltcp::storage::{PacketMetadata};
-use smoltcp::socket::{Socket, SocketSet, TcpSocket, TcpSocketBuffer, UdpSocket, UdpSocketBuffer, RawSocket, RawSocketBuffer};
+use smoltcp::socket::{Socket, SocketSet, SocketHandle, TcpSocket, TcpSocketBuffer, UdpSocket, UdpSocketBuffer, RawSocket, RawSocketBuffer};
 use std::collections::BTreeMap;
 
 pub struct TunSmolStack<'a, 'b: 'a, 'c: 'a + 'b> {
@@ -20,19 +20,30 @@ pub enum SocketType {
     UDP,
 }
 
+pub struct TunSmolStackBuilder<'a, 'b: 'a, 'c: 'a + 'b> {
+    sockets: SocketSet<'a, 'b, 'c >,
+    device: TunDevice,
+    ip_addrs: std::vec::Vec<IpCidr>,
+    default_v4_gw: Option<Ipv4Address>,
+    default_v6_gw: Option<Ipv6Address>,
+    neighbor_cache: Option<NeighborCache<'a>>,
+    //interface: Interface<'a, 'a, 'a, TunDevice>
+}
+
 //TODO: why I cant do TunSmolStack<'a, 'b, 'c, 'e, DeviceT: for<'d> Device<'d>>?
-impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStack<'a, 'b, 'c> {
-    pub fn new(interface_name: String) -> Result<TunSmolStack<'a, 'b, 'c>, u32> {
-        let device = TunDevice::new(interface_name.as_str()).unwrap();
-        let neighbor_cache = NeighborCache::new(BTreeMap::new());
+impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStackBuilder<'a, 'b, 'c> {
+    pub fn new(interface_name: String) -> TunSmolStackBuilder<'a, 'b, 'c> {
         let socket_set = SocketSet::new(vec![]);
-        let mut interface = InterfaceBuilder::new(device)
-            .neighbor_cache(neighbor_cache)
-            .finalize();
-        Ok(TunSmolStack {
+        let neighbor_cache = NeighborCache::new(BTreeMap::new());
+        let device = TunDevice::new(interface_name.as_str()).unwrap();
+        TunSmolStackBuilder {
             sockets: socket_set,
-            interface: interface,
-        })
+            device: device,
+            ip_addrs: std::vec::Vec::new(),
+            default_v4_gw: None,
+            default_v6_gw: None,
+            neighbor_cache: Some(neighbor_cache),
+        }
     }
 
     pub fn add_socket(&mut self, socket_type: SocketType) -> usize {
@@ -42,7 +53,7 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStack<'a, 'b, 'c> {
                 let tx_buffer = TcpSocketBuffer::new(vec![0; 1024]);
                 let socket = TcpSocket::new(rx_buffer, tx_buffer);
                 let handle = self.sockets.add(socket); 
-                //self.sockets.add(Socket::Tcp(socket));      
+                handle.value()
             }
             
             SocketType::UDP => {
@@ -50,6 +61,7 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStack<'a, 'b, 'c> {
                 let tx_buffer = UdpSocketBuffer::new(Vec::new(), vec![0; 1024]);
                 let socket = UdpSocket::new(rx_buffer, tx_buffer);
                 let handle = self.sockets.add(socket);
+                handle.value()
             }
             /*
             SocketType::RAW_IPV4 => {
@@ -72,9 +84,8 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStack<'a, 'b, 'c> {
                 panic!{"wrong choice for socket type"}
             }
         }
-        0
     }
-    /*
+
     pub fn add_ipv4_address(&mut self, cidr: CIpv4Cidr) -> Self {
         *self
     }
@@ -90,5 +101,23 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStack<'a, 'b, 'c> {
     pub fn add_default_v6_gateway(&mut self, ipv4_address: CIpv6Address) -> Self {
         *self
     }
-    */
+
+    pub fn finalize(&mut self) -> TunSmolStack {
+        let mut routes_storage = [None; 2];
+        let mut routes = Routes::new(&mut routes_storage[..]);
+        routes.add_default_ipv4_route(self.default_v4_gw.unwrap()).unwrap();
+        routes.add_default_ipv6_route(self.default_v6_gw.unwrap()).unwrap();
+        
+        let mut interface = InterfaceBuilder::new(self.device)
+            .neighbor_cache(self.neighbor_cache.unwrap())
+            .ip_addrs(self.ip_addrs)
+            .routes(routes)
+            .finalize();
+            
+        TunSmolStack {
+            sockets: self.sockets,
+            interface: interface
+        }
+    }
+    
 }
