@@ -35,13 +35,13 @@ pub struct CIpv6Address {
 #[repr(C)]
 pub struct CIpv4Cidr {
     pub address: CIpv4Address,
-    pub prefix: u32
+    pub prefix: u8
 }
 
 #[repr(C)]
 pub struct CIpv6Cidr {
     pub address: CIpv6Address,
-    pub prefix: u64
+    pub prefix: u8
 }
 
 #[no_mangle]
