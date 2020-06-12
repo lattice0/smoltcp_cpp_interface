@@ -7,6 +7,9 @@ use smoltcp::wire::{IpEndpoint, IpVersion, IpProtocol, IpCidr, Ipv4Address, Ipv6
 use smoltcp::storage::{PacketMetadata};
 use smoltcp::socket::{Socket, SocketSet, SocketHandle, TcpSocket, TcpSocketBuffer, UdpSocket, UdpSocketBuffer, RawSocket, RawSocketBuffer};
 use std::collections::BTreeMap;
+use std::collections::HashMap;
+
+static stacks: HashMap<u32, TunSmolStack> = HashMap::new();
 
 pub struct TunSmolStack<'a, 'b: 'a, 'c: 'a + 'b> {
     sockets: SocketSet<'a, 'b, 'c >,
@@ -131,6 +134,7 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStackBuilder<'a, 'b, 'c> {
     pub fn finalize(&mut self) -> TunSmolStack {
         let mut routes_storage = [None; 2];
         let mut routes = Routes::new(&mut routes_storage[..]);
+        //TODO: return C error if something is wrong, no unwrap
         routes.add_default_ipv4_route(self.default_v4_gw.unwrap()).unwrap();
         routes.add_default_ipv6_route(self.default_v6_gw.unwrap()).unwrap();
         
