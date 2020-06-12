@@ -1,7 +1,7 @@
 //use smoltcp_openvpn_bridge::virtual_tun::VirtualTunInterface;
 use super::interface::{CIpv4Address, CIpv4Cidr, CIpv6Address, CIpv6Cidr};
 use super::virtual_tun::VirtualTunInterface as TunDevice;
-use smoltcp::iface::{NeighborCache, Interface, InterfaceBuilder, Routes, NeighborCache};
+use smoltcp::iface::{NeighborCache, Interface, InterfaceBuilder, Routes};
 use smoltcp::phy::{self, Device};
 use smoltcp::wire::{IpEndpoint, IpVersion, IpProtocol, IpCidr, Ipv4Address, Ipv6Address, IpAddress};
 use smoltcp::storage::{PacketMetadata};
@@ -30,10 +30,8 @@ pub struct TunSmolStackBuilder<'a, 'b: 'a, 'c: 'a + 'b> {
     default_v4_gw: Option<Ipv4Address>,
     default_v6_gw: Option<Ipv6Address>,
     neighbor_cache: Option<NeighborCache<'a>>,
-    //interface: Interface<'a, 'a, 'a, TunDevice>
 }
 
-//TODO: why I cant do TunSmolStack<'a, 'b, 'c, 'e, DeviceT: for<'d> Device<'d>>?
 impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStackBuilder<'a, 'b, 'c> {
     pub fn new(interface_name: String) -> TunSmolStackBuilder<'a, 'b, 'c> {
         let socket_set = SocketSet::new(vec![]);
@@ -89,16 +87,16 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStackBuilder<'a, 'b, 'c> {
         }
     }
 
-    pub fn add_ipv4_address(&mut self, cidr: CIpv4Cidr) -> Self {
+    pub fn add_ipv4_address(mut self, cidr: CIpv4Cidr) -> Self {
         self.ip_addrs.push(IpCidr::new(IpAddress::v4(cidr.address.address[0],
                                                      cidr.address.address[1],
                                                      cidr.address.address[2],
                                                      cidr.address.address[3]), 
                                                      cidr.prefix));
-        *self
+        self
     }
 
-    pub fn add_ipv6_address(&mut self, cidr: CIpv6Cidr) -> Self {
+    pub fn add_ipv6_address(mut self, cidr: CIpv6Cidr) -> Self {
         self.ip_addrs.push(IpCidr::new(IpAddress::v6(cidr.address.address[0],
                                                      cidr.address.address[1],
                                                      cidr.address.address[2],
@@ -108,18 +106,18 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStackBuilder<'a, 'b, 'c> {
                                                      cidr.address.address[6],
                                                      cidr.address.address[7]), 
                                                      cidr.prefix));
-        *self
+        self
     }
 
-    pub fn add_default_v4_gateway(&mut self, ipv4_address: CIpv4Address) -> Self {
+    pub fn add_default_v4_gateway(mut self, ipv4_address: CIpv4Address) -> Self {
         self.default_v4_gw = Some(Ipv4Address::new(ipv4_address.address[0],
                                                    ipv4_address.address[1],
                                                    ipv4_address.address[2],
                                                    ipv4_address.address[3]));
-        *self
+        self
     }
 
-    pub fn add_default_v6_gateway(&mut self, ipv6_address: CIpv6Address) -> Self {
+    pub fn add_default_v6_gateway(mut self, ipv6_address: CIpv6Address) -> Self {
         self.default_v6_gw = Some(Ipv6Address::new(ipv6_address.address[0],
                                                    ipv6_address.address[1],
                                                    ipv6_address.address[2],
@@ -128,12 +126,13 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStackBuilder<'a, 'b, 'c> {
                                                    ipv6_address.address[5],
                                                    ipv6_address.address[6],
                                                    ipv6_address.address[7]));
-        *self
+        self
     }
 
-    pub fn finalize(&mut self) -> TunSmolStack {
-        let mut routes_storage = [None; 2];
-        let mut routes = Routes::new(&mut routes_storage[..]);
+    pub fn finalize(self) -> TunSmolStack<'a, 'b, 'c> {
+        //let mut routes_storage = [None; 2];
+        let mut routes_storage = BTreeMap::new();
+        let mut routes = Routes::new(routes_storage);
         //TODO: return C error if something is wrong, no unwrap
         routes.add_default_ipv4_route(self.default_v4_gw.unwrap()).unwrap();
         routes.add_default_ipv6_route(self.default_v6_gw.unwrap()).unwrap();
@@ -148,6 +147,5 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStackBuilder<'a, 'b, 'c> {
             sockets: self.sockets,
             interface: interface
         }
-    }
-    
+    } 
 }
