@@ -9,3 +9,4 @@ pub mod interface;
 pub mod smol_stack;
 
 pub use virtual_tun::VirtualTunInterface;
+pub use smol_stack::TunSmolStack;

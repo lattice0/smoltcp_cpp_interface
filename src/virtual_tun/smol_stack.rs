@@ -9,7 +9,7 @@ use smoltcp::socket::{Socket, SocketSet, SocketHandle, TcpSocket, TcpSocketBuffe
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 
-static stacks: HashMap<u32, TunSmolStack> = HashMap::new();
+//static stacks: HashMap<u32, TunSmolStack> = HashMap::new();
 
 pub struct TunSmolStack<'a, 'b: 'a, 'c: 'a + 'b> {
     sockets: SocketSet<'a, 'b, 'c >,
@@ -33,18 +33,18 @@ pub struct TunSmolStackBuilder<'a, 'b: 'a, 'c: 'a + 'b> {
 }
 
 impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStackBuilder<'a, 'b, 'c> {
-    pub fn new(interface_name: String) -> TunSmolStackBuilder<'a, 'b, 'c> {
+    pub fn new(interface_name: String) -> Box<TunSmolStackBuilder<'a, 'b, 'c>> {
         let socket_set = SocketSet::new(vec![]);
         let neighbor_cache = NeighborCache::new(BTreeMap::new());
         let device = TunDevice::new(interface_name.as_str()).unwrap();
-        TunSmolStackBuilder {
+        Box::new(TunSmolStackBuilder {
             sockets: socket_set,
             device: device,
             ip_addrs: std::vec::Vec::new(),
             default_v4_gw: None,
             default_v6_gw: None,
             neighbor_cache: Some(neighbor_cache),
-        }
+        })
     }
 
     pub fn add_socket(&mut self, socket_type: SocketType) -> usize {
@@ -87,16 +87,15 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStackBuilder<'a, 'b, 'c> {
         }
     }
 
-    pub fn add_ipv4_address(mut self, cidr: CIpv4Cidr) -> Self {
+    pub fn add_ipv4_address(&mut self, cidr: CIpv4Cidr) {
         self.ip_addrs.push(IpCidr::new(IpAddress::v4(cidr.address.address[0],
                                                      cidr.address.address[1],
                                                      cidr.address.address[2],
                                                      cidr.address.address[3]), 
                                                      cidr.prefix));
-        self
     }
 
-    pub fn add_ipv6_address(mut self, cidr: CIpv6Cidr) -> Self {
+    pub fn add_ipv6_address(&mut self, cidr: CIpv6Cidr) {
         self.ip_addrs.push(IpCidr::new(IpAddress::v6(cidr.address.address[0],
                                                      cidr.address.address[1],
                                                      cidr.address.address[2],
@@ -106,32 +105,29 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStackBuilder<'a, 'b, 'c> {
                                                      cidr.address.address[6],
                                                      cidr.address.address[7]), 
                                                      cidr.prefix));
-        self
     }
 
-    pub fn add_default_v4_gateway(mut self, ipv4_address: CIpv4Address) -> Self {
-        self.default_v4_gw = Some(Ipv4Address::new(ipv4_address.address[0],
-                                                   ipv4_address.address[1],
-                                                   ipv4_address.address[2],
-                                                   ipv4_address.address[3]));
-        self
+    pub fn add_default_v4_gateway(&mut self, address: CIpv4Address) {
+        self.default_v4_gw = Some(Ipv4Address::new(address.address[0],
+                                                   address.address[1],
+                                                   address.address[2],
+                                                   address.address[3]));
     }
 
-    pub fn add_default_v6_gateway(mut self, ipv6_address: CIpv6Address) -> Self {
-        self.default_v6_gw = Some(Ipv6Address::new(ipv6_address.address[0],
-                                                   ipv6_address.address[1],
-                                                   ipv6_address.address[2],
-                                                   ipv6_address.address[3],
-                                                   ipv6_address.address[4],
-                                                   ipv6_address.address[5],
-                                                   ipv6_address.address[6],
-                                                   ipv6_address.address[7]));
-        self
+    pub fn add_default_v6_gateway(&mut self, address: CIpv6Address) {
+        self.default_v6_gw = Some(Ipv6Address::new(address.address[0],
+                                                   address.address[1],
+                                                   address.address[2],
+                                                   address.address[3],
+                                                   address.address[4],
+                                                   address.address[5],
+                                                   address.address[6],
+                                                   address.address[7]));
     }
 
-    pub fn finalize(self) -> TunSmolStack<'a, 'b, 'c> {
+    pub fn finalize(&self) -> Box<TunSmolStack<'a, 'b, 'c>> {
         //let mut routes_storage = [None; 2];
-        let mut routes_storage = BTreeMap::new();
+        let routes_storage = BTreeMap::new();
         let mut routes = Routes::new(routes_storage);
         //TODO: return C error if something is wrong, no unwrap
         routes.add_default_ipv4_route(self.default_v4_gw.unwrap()).unwrap();
@@ -142,10 +138,11 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStackBuilder<'a, 'b, 'c> {
             .ip_addrs(self.ip_addrs)
             .routes(routes)
             .finalize();
-
-        TunSmolStack {
-            sockets: self.sockets,
-            interface: interface
-        }
+        Box::new(
+            TunSmolStack {
+                sockets: self.sockets,
+                interface: interface
+            }
+        )
     } 
 }
