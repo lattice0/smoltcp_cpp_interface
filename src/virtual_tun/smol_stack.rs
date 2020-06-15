@@ -9,11 +9,9 @@ use smoltcp::socket::{Socket, SocketSet, SocketHandle, TcpSocket, TcpSocketBuffe
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 
-//static stacks: HashMap<u32, TunSmolStack> = HashMap::new();
-
 pub struct TunSmolStack<'a, 'b: 'a, 'c: 'a + 'b> {
-    sockets: SocketSet<'a, 'b, 'c >,
-    interface: Interface<'a, 'a, 'a, TunDevice>
+    sockets: &'a mut SocketSet<'a, 'b, 'c >,
+    interface: &'a Interface<'a, 'a, 'a, TunDevice>
 }
 
 pub enum SocketType {
@@ -23,6 +21,15 @@ pub enum SocketType {
     UDP,
 }
 
+/*
+    TunSmolStackBuilder contains the TunSmolStack because
+    TunSmolStack is required to have references that can't be 
+    moved out of TunSmolStackBuilder. Why? Because we must deliver
+    TunSmolStackBuilder from reference from C++, so we must always
+    receive it as `&mut TunSmolStackBuilder`. So in the `finalize` 
+    implementation for it, it'd try to move from a borrowed value, 
+    which is not possible.
+*/
 pub struct TunSmolStackBuilder<'a, 'b: 'a, 'c: 'a + 'b> {
     sockets: SocketSet<'a, 'b, 'c >,
     device: TunDevice,
@@ -30,6 +37,7 @@ pub struct TunSmolStackBuilder<'a, 'b: 'a, 'c: 'a + 'b> {
     default_v4_gw: Option<Ipv4Address>,
     default_v6_gw: Option<Ipv6Address>,
     neighbor_cache: Option<NeighborCache<'a>>,
+    tun_smol_stack: Option<TunSmolStack<'a, 'b, 'c>>
 }
 
 impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStackBuilder<'a, 'b, 'c> {
@@ -44,6 +52,7 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStackBuilder<'a, 'b, 'c> {
             default_v4_gw: None,
             default_v6_gw: None,
             neighbor_cache: Some(neighbor_cache),
+            tun_smol_stack: None
         })
     }
 
@@ -125,7 +134,7 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStackBuilder<'a, 'b, 'c> {
                                                    address.address[7]));
     }
 
-    pub fn finalize(&self) -> Box<TunSmolStack<'a, 'b, 'c>> {
+    pub fn finalize(&self) -> u8 {
         //let mut routes_storage = [None; 2];
         let routes_storage = BTreeMap::new();
         let mut routes = Routes::new(routes_storage);
@@ -138,11 +147,11 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStackBuilder<'a, 'b, 'c> {
             .ip_addrs(self.ip_addrs)
             .routes(routes)
             .finalize();
-        Box::new(
-            TunSmolStack {
-                sockets: self.sockets,
-                interface: interface
-            }
-        )
+        let tun_smol_stack = TunSmolStack {
+                sockets: &mut self.sockets,
+                interface: &mut interface
+            };
+        self.tun_smol_stack = Some(tun_smol_stack);
+        0
     } 
 }

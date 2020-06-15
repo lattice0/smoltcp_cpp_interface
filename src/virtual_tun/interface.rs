@@ -1,18 +1,9 @@
-use std::str::{self, FromStr};
-use std::collections::BTreeMap;
+use std::str::{self};
 use std::os::raw::{c_int};
-use std::thread;
-//use url::Url;
-//use smoltcp::phy::wait as phy_wait;
-use smoltcp::wire::{Ipv4Address, Ipv6Address, IpAddress, IpCidr};
-use smoltcp::iface::{NeighborCache, InterfaceBuilder, Routes};
-use smoltcp::socket::{SocketSet, TcpSocket, TcpSocketBuffer};
-use smoltcp::time::Instant;
-use super::smol_stack::{TunSmolStack, TunSmolStackBuilder};
-//use smoltcp_openvpn_bridge::virtual_tun::VirtualTunInterface;
+
+use super::smol_stack::{TunSmolStackBuilder};
 
 type OnDataCallback = unsafe extern "C" fn(data: *mut u8, len: usize) -> c_int;
-
 static mut onDataCallback_: Option<OnDataCallback> = None;
 
 /*
@@ -60,6 +51,11 @@ pub extern "C" fn init(cb: Option<OnDataCallback>) -> c_int
 }
 
 #[no_mangle]
+pub extern "C" fn smol_stack_tun_smol_stack_builder_new<'a, 'b: 'a, 'c: 'a + 'b>(interface_name: &str) -> Box<TunSmolStackBuilder<'a, 'b, 'c>> {
+    TunSmolStackBuilder::new(String::from(interface_name))
+}
+
+#[no_mangle]
 pub extern "C" fn smol_stack_add_ipv4_address(tun_smol_stack_builder: &mut TunSmolStackBuilder, cidr: CIpv4Cidr) {
     tun_smol_stack_builder.add_ipv4_address(cidr);
 }
@@ -80,6 +76,6 @@ pub extern "C" fn smol_stack_add_default_v6_gateway(tun_smol_stack_builder: &mut
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_finalize<'a, 'b: 'a, 'c: 'a + 'b>(tun_smol_stack_builder: &TunSmolStackBuilder<'a, 'b, 'c>) -> Box<TunSmolStack<'a, 'b, 'c>> {
+pub extern "C" fn smol_stack_finalize<'a, 'b: 'a, 'c: 'a + 'b>(tun_smol_stack_builder: &TunSmolStackBuilder<'a, 'b, 'c>) -> u8 {
     tun_smol_stack_builder.finalize()
 }
