@@ -10,14 +10,6 @@ use smoltcp::wire::{Ipv4Address, Ipv6Address, IpAddress, IpCidr};
 type OnDataCallback = unsafe extern "C" fn(data: *mut u8, len: usize) -> c_int;
 static mut onDataCallback_: Option<OnDataCallback> = None;
 
-/*
-#[repr(C)]
-pub struct CSocketHandleResult {
-    pub ok: bool,
-    pub handle: usize,
-}
-*/
-
 #[repr(C)]
 pub struct CIpv4Address {
     pub address: [u8; 4],
@@ -67,6 +59,7 @@ pub extern "C" fn smol_stack_add_socket(tun_smol_stack: &mut TunSmolStack, socke
         _ => panic!("wrong type")
     }
 }
+
 pub extern "C" fn smol_stack_spin(tun_smol_stack: &mut TunSmolStack, socket_handle: &SocketHandle) {
     let timestamp = Instant::now();
     

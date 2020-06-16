@@ -8,8 +8,8 @@ edition = "2018"
 log = { version = "0.4.4", default-features = false, optional = true }
 libc = { version = "0.2.18", optional = true }
 rand = { version = "0.3" }
-#smoltcp = {git = "https://github.com/lucaszanella/smoltcp/", branch="ip-interface-alt-managed"}
-smoltcp = { path = "../../smoltcp_merge/smoltcp" }
+smoltcp = {git = "https://github.com/lucaszanella/smoltcp/", branch="ip-interface-alt-managed"}
+#smoltcp = { path = "../../smoltcp_merge/smoltcp" }
 #managed = { git = "https://github.com/smoltcp-rs/rust-managed", features = ["map"] }
 
 [dev-dependencies]

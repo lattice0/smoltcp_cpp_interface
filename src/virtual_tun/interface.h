@@ -3,6 +3,7 @@
 
 typedef void* TunSmolStack;
 typedef void* SocketHandle;
+
 static int SOCKET_TCP = 0;
 static int SOCKET_UDP = 1;
 
