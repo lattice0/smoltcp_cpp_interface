@@ -130,7 +130,6 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStack<'a, 'b, 'c> {
     }
 
     pub fn finalize(&mut self) -> u8 {
-        //let mut routes_storage = [None; 2];
         let routes_storage = BTreeMap::new();
         let mut routes = Routes::new(routes_storage);
         //TODO: return C error if something is wrong, no unwrap

@@ -8,8 +8,8 @@ use super::smol_stack::{TunSmolStack, SocketType};
 use smoltcp::time::Instant;
 use smoltcp::wire::{Ipv4Address, Ipv6Address, IpAddress, IpCidr};
 
-type OnDataCallback = unsafe extern "C" fn(data: *mut u8, len: usize) -> c_int;
-static mut onDataCallback_: Option<OnDataCallback> = None;
+type OnPacketFromOutside = unsafe extern "C" fn(data: *mut u8, len: usize) -> c_int;
+static mut onPacketFromOutside_: Option<OnPacketFromOutside> = None;
 
 #[repr(C)]
 pub struct CIpv4Address {
@@ -34,17 +34,10 @@ pub struct CIpv6Cidr {
 }
 
 #[no_mangle]
-pub extern "C" fn registerOnDataCallback(cb: Option<OnDataCallback>) -> c_int
+pub extern "C" fn registerOnPacketFromOutside(cb: Option<OnPacketFromOutside>) -> c_int
 {
-    unsafe{onDataCallback_ = cb;}
-    return 0;
-}
-
-#[no_mangle]
-pub extern "C" fn init(cb: Option<OnDataCallback>) -> c_int
-{
-    unsafe{onDataCallback_ = cb;}
-    return 0;
+    unsafe{onPacketFromOutside_ = cb;}
+    0
 }
 
 #[no_mangle]
