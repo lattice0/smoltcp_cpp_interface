@@ -60,6 +60,7 @@ pub extern "C" fn smol_stack_add_socket(tun_smol_stack: &mut TunSmolStack, socke
     }
 }
 
+#[no_mangle]
 pub extern "C" fn smol_stack_spin(tun_smol_stack: &mut TunSmolStack, socket_handle: &SocketHandle) {
     let timestamp = Instant::now();
     
@@ -84,6 +85,7 @@ pub extern "C" fn smol_stack_spin(tun_smol_stack: &mut TunSmolStack, socket_hand
     }
     */
 }
+
 #[no_mangle]
 pub extern "C" fn smol_stack_add_ipv4_address(tun_smol_stack: &mut TunSmolStack, cidr: CIpv4Cidr) {
     tun_smol_stack.add_ipv4_address(cidr);

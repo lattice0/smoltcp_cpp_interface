@@ -1,8 +1,8 @@
 #ifndef SMOL_TCP_INTERFACE_H
 #define SMOL_TCP_INTERFACE_H
 
-typedef void* TunSmolStack;
-typedef void* SocketHandle;
+typedef void* TunSmolStackPtr;
+typedef void* SocketHandlePtr;
 
 static int SOCKET_TCP = 0;
 static int SOCKET_UDP = 1;
@@ -33,28 +33,36 @@ extern "C" void cppDeletePointer(uint8_t *data) {
     delete data;
 }
 
-extern "C" TunSmolStack smol_stack_tun_smol_stack_builder_new(const char* interfaceName);
-extern "C" SocketHandle smol_stack_add_socket(TunSmolStack, uint8_t);
-extern "C" void smol_stack_spin(TunSmolStack, SocketHandle);
-extern "C" void smol_stack_add_ipv4_address(TunSmolStack, CIpv4Cidr);
-extern "C" void smol_stack_add_ipv6_address(TunSmolStack, CIpv6Cidr);
-extern "C" void smol_stack_add_default_v4_gateway(TunSmolStack, CIpv4Address);
-extern "C" void smol_stack_add_default_v6_gateway(TunSmolStack, CIpv6Address);
-extern "C" uint8_t smol_stack_finalize(TunSmolStack);
+extern "C" TunSmolStackPtr smol_stack_tun_smol_stack_builder_new(const char* interfaceName);
+extern "C" SocketHandlePtr smol_stack_add_socket(TunSmolStackPtr, uint8_t);
+extern "C" void smol_stack_spin(TunSmolStackPtr, SocketHandlePtr);
+extern "C" void smol_stack_add_ipv4_address(TunSmolStackPtr, CIpv4Cidr);
+extern "C" void smol_stack_add_ipv6_address(TunSmolStackPtr, CIpv6Cidr);
+extern "C" void smol_stack_add_default_v4_gateway(TunSmolStackPtr, CIpv4Address);
+extern "C" void smol_stack_add_default_v6_gateway(TunSmolStackPtr, CIpv6Address);
+extern "C" uint8_t smol_stack_finalize(TunSmolStackPtr);
 
-class TunSmolStackBuilder {
+class TunSmolStack {
 private:
-    TunSmolStack tunSmolStackPtr;
+    TunSmolStackPtr tunSmolStackPtr;
 public:
-    TunSmolStackBuilder(std::string interfaceName) {
+    TunSmolStack(std::string interfaceName) {
         tunSmolStackPtr = smol_stack_tun_smol_stack_builder_new(interfaceName.c_str());
+    }
+
+    SocketHandlePtr addSocket(uint8_t socketType) {
+        return smol_stack_add_socket(tunSmolStackPtr, socketType);
+    }
+
+    void spin(SocketHandlePtr socketHandlePtr) {
+        smol_stack_spin(tunSmolStackPtr, socketHandlePtr);
     }
 
     void addIpv4Address(CIpv4Cidr cidr) {
         smol_stack_add_ipv4_address(tunSmolStackPtr, cidr);
     }
 
-    void addIpv4Address(CIpv6Cidr cidr) {
+    void addIpv6Address(CIpv6Cidr cidr) {
         smol_stack_add_ipv6_address(tunSmolStackPtr, cidr);
     }
 
