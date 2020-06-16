@@ -1,7 +1,7 @@
 //use smoltcp_openvpn_bridge::virtual_tun::VirtualTunInterface;
 use super::interface::{CIpv4Address, CIpv4Cidr, CIpv6Address, CIpv6Cidr};
 use super::virtual_tun::VirtualTunInterface as TunDevice;
-use smoltcp::iface::{NeighborCache, Interface, InterfaceBuilder, Routes};
+use smoltcp::iface::{Interface, InterfaceBuilder, Routes};
 use smoltcp::phy::{self, Device};
 use smoltcp::wire::{IpEndpoint, IpVersion, IpProtocol, IpCidr, Ipv4Address, Ipv6Address, IpAddress};
 use smoltcp::storage::{PacketMetadata};
@@ -32,23 +32,21 @@ pub struct TunSmolStack<'a, 'b: 'a, 'c: 'a + 'b> {
     ip_addrs: Option<std::vec::Vec<IpCidr>>,
     default_v4_gw: Option<Ipv4Address>,
     default_v6_gw: Option<Ipv6Address>,
-    neighbor_cache: Option<NeighborCache<'a>>,
     pub interface: Option<Interface<'a, 'b, 'c, TunDevice>>
 }
 
 impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStack<'a, 'b, 'c> {
     pub fn new(interface_name: String) -> Box<TunSmolStack<'a, 'b, 'c>> {
         let socket_set = SocketSet::new(vec![]);
-        let neighbor_cache = NeighborCache::new(BTreeMap::new());
         let device = TunDevice::new(interface_name.as_str()).unwrap();
         let ip_addrs = std::vec::Vec::new();
+
         Box::new(TunSmolStack {
             sockets: socket_set,
             device: Some(device),
             ip_addrs: Some(ip_addrs),
             default_v4_gw: None,
             default_v6_gw: None,
-            neighbor_cache: Some(neighbor_cache),
             interface: None
         })
     }
@@ -139,7 +137,6 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStack<'a, 'b, 'c> {
         routes.add_default_ipv4_route(self.default_v4_gw.unwrap()).unwrap();
         routes.add_default_ipv6_route(self.default_v6_gw.unwrap()).unwrap();
         let interface = InterfaceBuilder::new(self.device.take().unwrap())
-            .neighbor_cache(self.neighbor_cache.take().unwrap())
             .ip_addrs(self.ip_addrs.take().unwrap())
             .routes(routes)
             .finalize();

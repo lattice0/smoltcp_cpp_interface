@@ -1,7 +1,8 @@
 extern crate rand;
 
 use std::str::{self};
-use std::os::raw::{c_int};
+use std::os::raw::{c_int, c_char};
+use std::ffi::CStr;
 use smoltcp::socket::{SocketHandle, TcpSocket};
 use super::smol_stack::{TunSmolStack, SocketType};
 use smoltcp::time::Instant;
@@ -47,8 +48,11 @@ pub extern "C" fn init(cb: Option<OnDataCallback>) -> c_int
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_tun_smol_stack_new<'a, 'b: 'a, 'c: 'a + 'b>(interface_name: &str) -> Box<TunSmolStack<'a, 'b, 'c>> {
-    TunSmolStack::new(String::from(interface_name))
+pub extern "C" fn smol_stack_tun_smol_stack_new<'a, 'b: 'a, 'c: 'a + 'b>(interface_name: *const c_char) -> Box<TunSmolStack<'a, 'b, 'c>> {
+    let interface_name_c_str: &CStr = unsafe { CStr::from_ptr(interface_name) };
+    let interface_name_slice: &str = interface_name_c_str.to_str().unwrap();
+    let s: String = interface_name_slice.to_owned();
+    TunSmolStack::new(s)
 }
 
 #[no_mangle]
