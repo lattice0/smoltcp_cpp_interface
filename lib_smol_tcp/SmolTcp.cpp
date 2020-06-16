@@ -11,6 +11,8 @@ int main() {
         },
         24
     });
+    */
+    /*
     tunSmolStack.addIpv6Address(CIpv6Cidr {
         CIpv6Address {
             {0xfdaa, 0, 0, 0, 0, 0, 0, 1}

@@ -4,3 +4,5 @@ Cargo.lock
 *.so
 smoltcp_example
 smoltcp_openvpn_bridge
+a.out
+core

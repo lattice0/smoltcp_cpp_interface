@@ -33,7 +33,7 @@ extern "C" void cppDeletePointer(uint8_t *data) {
     delete data;
 }
 
-extern "C" TunSmolStackPtr smol_stack_tun_smol_stack_builder_new(const char* interfaceName);
+extern "C" TunSmolStackPtr smol_stack_tun_smol_stack_new(const char* interfaceName);
 extern "C" SocketHandlePtr smol_stack_add_socket(TunSmolStackPtr, uint8_t);
 extern "C" void smol_stack_spin(TunSmolStackPtr, SocketHandlePtr);
 extern "C" void smol_stack_add_ipv4_address(TunSmolStackPtr, CIpv4Cidr);
@@ -47,7 +47,7 @@ private:
     TunSmolStackPtr tunSmolStackPtr;
 public:
     TunSmolStack(std::string interfaceName) {
-        tunSmolStackPtr = smol_stack_tun_smol_stack_builder_new(interfaceName.c_str());
+        tunSmolStackPtr = smol_stack_tun_smol_stack_new(interfaceName.c_str());
     }
 
     SocketHandlePtr addSocket(uint8_t socketType) {

@@ -41,10 +41,11 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStack<'a, 'b, 'c> {
         let socket_set = SocketSet::new(vec![]);
         let neighbor_cache = NeighborCache::new(BTreeMap::new());
         let device = TunDevice::new(interface_name.as_str()).unwrap();
+        let ip_addrs = std::vec::Vec::new();
         Box::new(TunSmolStack {
             sockets: socket_set,
             device: Some(device),
-            ip_addrs: Some(std::vec::Vec::new()),
+            ip_addrs: Some(ip_addrs),
             default_v4_gw: None,
             default_v6_gw: None,
             neighbor_cache: Some(neighbor_cache),
