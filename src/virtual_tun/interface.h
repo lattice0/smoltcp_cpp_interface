@@ -1,11 +1,42 @@
 #ifndef SMOL_TCP_INTERFACE_H
 #define SMOL_TCP_INTERFACE_H
-
+#include <unordered_map>
+#include <random>
+#include <limits>
 typedef void* TunSmolStackPtr;
 typedef void* SocketHandlePtr;
 
-static int SOCKET_TCP = 0;
-static int SOCKET_UDP = 1;
+static const int SOCKET_TCP = 0;
+static const int SOCKET_UDP = 1;
+
+template<typename T>
+class HandleMap {
+public:
+    std::unordered_map<size_t, T> map;
+
+    T& get(size_t key) {
+        auto it = map.find(key);
+        if (it == map.end()) throw std::invalid_argument("invalid key");
+        return it->second;
+    }
+
+    size_t emplace(T t) {
+        size_t handle = getNewHandle();
+        map[handle] = t;
+        return handle;
+    }
+
+private:
+    size_t currentIndex = 0;
+    size_t getNewHandle() {
+        if (currentIndex < std::numeric_limits<size_t>::max()) {
+            currentIndex += 1;
+            return currentIndex;
+        } else {
+            //throw here
+        }
+    }
+};
 
 struct CIpv4Address {
     uint8_t address[4];
@@ -35,12 +66,18 @@ extern "C" void cppDeletePointer(uint8_t *data) {
 
 extern "C" TunSmolStackPtr smol_stack_tun_smol_stack_new(const char* interfaceName);
 extern "C" SocketHandlePtr smol_stack_add_socket(TunSmolStackPtr, uint8_t);
-extern "C" void smol_stack_spin(TunSmolStackPtr, SocketHandlePtr);
+extern "C" void smol_stack_spin(TunSmolStackPtr, size_t handle);
 extern "C" void smol_stack_add_ipv4_address(TunSmolStackPtr, CIpv4Cidr);
 extern "C" void smol_stack_add_ipv6_address(TunSmolStackPtr, CIpv6Cidr);
 extern "C" void smol_stack_add_default_v4_gateway(TunSmolStackPtr, CIpv4Address);
 extern "C" void smol_stack_add_default_v6_gateway(TunSmolStackPtr, CIpv6Address);
 extern "C" uint8_t smol_stack_finalize(TunSmolStackPtr);
+
+class SmolSocket {
+public:
+    unsigned int id = 0;
+    SocketHandlePtr socketHandlePtr;
+};
 
 class TunSmolStack {
 private:
@@ -54,8 +91,8 @@ public:
         return smol_stack_add_socket(tunSmolStackPtr, socketType);
     }
 
-    void spin(SocketHandlePtr socketHandlePtr) {
-        smol_stack_spin(tunSmolStackPtr, socketHandlePtr);
+    void spin(SocketHandlePtr socketHandlePtr, size_t handle) {
+        smol_stack_spin(tunSmolStackPtr, handle);
     }
 
     void addIpv4Address(CIpv4Cidr cidr) {

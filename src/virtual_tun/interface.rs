@@ -8,8 +8,8 @@ use super::smol_stack::{TunSmolStack, SocketType};
 use smoltcp::time::Instant;
 use smoltcp::wire::{Ipv4Address, Ipv6Address, IpAddress, IpCidr};
 
-type OnPacketFromOutside = unsafe extern "C" fn(data: *mut u8, len: usize) -> c_int;
-static mut onPacketFromOutside_: Option<OnPacketFromOutside> = None;
+type OnPacketToOutside = unsafe extern "C" fn(data: *mut u8, len: usize, packet_type: u8) -> c_int;
+static mut onPacketToOutside: Option<OnPacketToOutside> = None;
 
 #[repr(C)]
 pub struct CIpv4Address {
@@ -34,9 +34,9 @@ pub struct CIpv6Cidr {
 }
 
 #[no_mangle]
-pub extern "C" fn registerOnPacketFromOutside(cb: Option<OnPacketFromOutside>) -> c_int
+pub extern "C" fn registerOnPacketToOutside(callback: Option<OnPacketToOutside>) -> c_int
 {
-    unsafe{onPacketFromOutside_ = cb;}
+    unsafe{onPacketToOutside = callback;}
     0
 }
 
@@ -46,6 +46,11 @@ pub extern "C" fn smol_stack_tun_smol_stack_new<'a, 'b: 'a, 'c: 'a + 'b>(interfa
     let interface_name_slice: &str = interface_name_c_str.to_str().unwrap();
     let s: String = interface_name_slice.to_owned();
     TunSmolStack::new(s)
+}
+
+//packets (ethernet, ip, tcp, etc) from the world to the stack
+pub extern "C" fn smol_stack_tun_receive_packet(data: *mut u8, len: usize, packet_type: u8) {
+
 }
 
 #[no_mangle]

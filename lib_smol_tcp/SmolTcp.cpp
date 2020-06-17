@@ -2,7 +2,7 @@
 #include "interface.h"
 
 int main() {
-    
+    HandleMap<SmolSocket> smolSockethandleMap;
     TunSmolStack tunSmolStack("tun0");
     
     tunSmolStack.addIpv4Address(CIpv4Cidr {
@@ -35,10 +35,16 @@ int main() {
     });
     
     SocketHandlePtr socketHandle = tunSmolStack.addSocket(SOCKET_TCP);
+    SmolSocket smolSocket;
+    smolSocket.socketHandlePtr = socketHandle;
+    size_t handle = smolSockethandleMap.emplace(smolSocket);
+
     uint8_t result = tunSmolStack.finalize();
+
     if (result==0) {
-        tunSmolStack.spin(socketHandle);
+        tunSmolStack.spin(socketHandle, handle);
     } else {
+        //throw
         std::cout << "error on finalize" << std::endl;
     }
     
