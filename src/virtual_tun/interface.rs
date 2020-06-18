@@ -63,6 +63,16 @@ pub extern "C" fn smol_stack_add_socket(tun_smol_stack: &mut TunSmolStack, socke
 }
 
 #[no_mangle]
+pub extern "C" fn smol_stack_connect_ipv4(tun_smol_stack: &mut TunSmolStack, socket_handle: &SocketHandle, address: CIpv4Address, src_port: u16, dst_port: u16) -> u8 {
+    tun_smol_stack.connect_ipv4(socket_handle,address, src_port, dst_port)
+}
+
+#[no_mangle]
+pub extern "C" fn smol_stack_connect_ipv6(tun_smol_stack: &mut TunSmolStack, socket_handle: &SocketHandle, address: CIpv6Address, src_port: u16, dst_port: u16) -> u8 {
+    tun_smol_stack.connect_ipv6(socket_handle, address, src_port, dst_port)
+}
+
+#[no_mangle]
 pub extern "C" fn smol_stack_spin(tun_smol_stack: &mut TunSmolStack, socket_handle: &SocketHandle) {
     let timestamp = Instant::now();
     

@@ -3,6 +3,7 @@
 #include <unordered_map>
 #include <random>
 #include <limits>
+
 typedef void* TunSmolStackPtr;
 typedef void* SocketHandlePtr;
 
@@ -67,6 +68,8 @@ extern "C" void cppDeletePointer(uint8_t *data) {
 extern "C" TunSmolStackPtr smol_stack_tun_smol_stack_new(const char* interfaceName);
 extern "C" SocketHandlePtr smol_stack_add_socket(TunSmolStackPtr, uint8_t);
 extern "C" void smol_stack_spin(TunSmolStackPtr, size_t handle);
+extern "C" void smol_stack_connect_ipv4(TunSmolStackPtr, CIpv4Address, uint8_t, uint8_t);
+extern "C" void smol_stack_connect_ipv6(TunSmolStackPtr, CIpv6Address, uint8_t, uint8_t);
 extern "C" void smol_stack_add_ipv4_address(TunSmolStackPtr, CIpv4Cidr);
 extern "C" void smol_stack_add_ipv6_address(TunSmolStackPtr, CIpv6Cidr);
 extern "C" void smol_stack_add_default_v4_gateway(TunSmolStackPtr, CIpv4Address);
@@ -93,6 +96,14 @@ public:
 
     void spin(SocketHandlePtr socketHandlePtr, size_t handle) {
         smol_stack_spin(tunSmolStackPtr, handle);
+    }
+
+    void connectIpv4(CIpv4Address address, uint8_t src_port, uint8_t dst_port) {
+        smol_stack_connect_ipv4(tunSmolStackPtr, address, src_port, dst_port);
+    }
+
+    void connectIpv6(CIpv4Address address, uint8_t src_port, uint8_t dst_port) {
+        smol_stack_connect_ipv4(tunSmolStackPtr, address, src_port, dst_port);
     }
 
     void addIpv4Address(CIpv4Cidr cidr) {

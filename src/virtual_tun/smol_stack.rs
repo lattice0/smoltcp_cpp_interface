@@ -3,12 +3,17 @@ use super::interface::{CIpv4Address, CIpv4Cidr, CIpv6Address, CIpv6Cidr};
 use super::virtual_tun::VirtualTunInterface as TunDevice;
 use smoltcp::iface::{Interface, InterfaceBuilder, Routes};
 use smoltcp::phy::{self, Device};
-use smoltcp::wire::{IpEndpoint, IpVersion, IpProtocol, IpCidr, Ipv4Address, Ipv6Address, IpAddress};
-use smoltcp::storage::{PacketMetadata};
-use smoltcp::socket::{Socket, SocketSet, SocketHandle, TcpSocket, TcpSocketBuffer, UdpSocket, UdpSocketBuffer, RawSocket, RawSocketBuffer};
+use smoltcp::socket::{
+    RawSocket, RawSocketBuffer, Socket, SocketHandle, SocketSet, TcpSocket, TcpSocketBuffer,
+    UdpSocket, UdpSocketBuffer,
+};
+use smoltcp::storage::PacketMetadata;
+use smoltcp::wire::{
+    IpAddress, IpCidr, IpEndpoint, IpProtocol, IpVersion, Ipv4Address, Ipv6Address,
+};
+use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
-use std::cell::RefCell;
 
 pub enum SocketType {
     RAW_IPV4,
@@ -18,21 +23,15 @@ pub enum SocketType {
 }
 
 /*
-    TunSmolStack contains the TunSmolStack because
-    TunSmolStack is required to have references that can't be 
-    moved out of TunSmolStack. Why? Because we must deliver
-    TunSmolStack from reference from C++, so we must always
-    receive it as `&mut TunSmolStack`. So in the `finalize` 
-    implementation for it, it'd try to move from a borrowed value, 
-    which is not possible.
+    
 */
 pub struct TunSmolStack<'a, 'b: 'a, 'c: 'a + 'b> {
-    pub sockets: SocketSet<'a, 'b, 'c >,
+    pub sockets: SocketSet<'a, 'b, 'c>,
     device: Option<TunDevice>,
     ip_addrs: Option<std::vec::Vec<IpCidr>>,
     default_v4_gw: Option<Ipv4Address>,
     default_v6_gw: Option<Ipv6Address>,
-    pub interface: Option<Interface<'a, 'b, 'c, TunDevice>>
+    pub interface: Option<Interface<'a, 'b, 'c, TunDevice>>,
 }
 
 impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStack<'a, 'b, 'c> {
@@ -47,7 +46,7 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStack<'a, 'b, 'c> {
             ip_addrs: Some(ip_addrs),
             default_v4_gw: None,
             default_v6_gw: None,
-            interface: None
+            interface: None,
         })
     }
 
@@ -57,10 +56,9 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStack<'a, 'b, 'c> {
                 let rx_buffer = TcpSocketBuffer::new(vec![0; 1024]);
                 let tx_buffer = TcpSocketBuffer::new(vec![0; 1024]);
                 let socket = TcpSocket::new(rx_buffer, tx_buffer);
-                let handle = self.sockets.add(socket); 
+                let handle = self.sockets.add(socket);
                 Box::new(handle)
             }
-            
             SocketType::UDP => {
                 let rx_buffer = UdpSocketBuffer::new(Vec::new(), vec![0; 1024]);
                 let tx_buffer = UdpSocketBuffer::new(Vec::new(), vec![0; 1024]);
@@ -86,60 +84,132 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStack<'a, 'b, 'c> {
             }
             */
             _ => {
-                panic!{"wrong choice for socket type"}
+                panic! {"wrong choice for socket type"}
             }
         }
     }
 
+    pub fn connect_ipv4(
+        &mut self,
+        socket_handle: &SocketHandle,
+        address: CIpv4Address,
+        src_port: u16,
+        dst_port: u16,
+    ) -> u8 {
+        let mut socket = self.sockets.get::<TcpSocket>(*socket_handle);
+        let r = socket.connect(
+            (
+                Ipv4Address::new(
+                    address.address[0],
+                    address.address[1],
+                    address.address[2],
+                    address.address[3],
+                ),
+                dst_port,
+            ),
+            src_port,
+        );
+        match r {
+            Ok(()) => 0,
+            _ => 1,
+        }
+    }
+
+    pub fn connect_ipv6(
+        &mut self,
+        socket_handle: &SocketHandle,
+        address: CIpv6Address,
+        src_port: u16,
+        dst_port: u16,
+    ) -> u8 {
+        let mut socket = self.sockets.get::<TcpSocket>(*socket_handle);
+        let r = socket.connect(
+            (
+                Ipv6Address::new(
+                    address.address[0],
+                    address.address[1],
+                    address.address[2],
+                    address.address[3],
+                    address.address[4],
+                    address.address[5],
+                    address.address[6],
+                    address.address[7],
+                ),
+                dst_port,
+            ),
+            src_port,
+        );
+        match r {
+            Ok(()) => 0,
+            _ => 1,
+        }
+    }
+
     pub fn add_ipv4_address(&mut self, cidr: CIpv4Cidr) {
-        self.ip_addrs.as_mut().unwrap().push(IpCidr::new(IpAddress::v4(cidr.address.address[0],
-                                                     cidr.address.address[1],
-                                                     cidr.address.address[2],
-                                                     cidr.address.address[3]), 
-                                                     cidr.prefix));
+        self.ip_addrs.as_mut().unwrap().push(IpCidr::new(
+            IpAddress::v4(
+                cidr.address.address[0],
+                cidr.address.address[1],
+                cidr.address.address[2],
+                cidr.address.address[3],
+            ),
+            cidr.prefix,
+        ));
     }
 
     pub fn add_ipv6_address(&mut self, cidr: CIpv6Cidr) {
-        self.ip_addrs.as_mut().unwrap().push(IpCidr::new(IpAddress::v6(cidr.address.address[0],
-                                                     cidr.address.address[1],
-                                                     cidr.address.address[2],
-                                                     cidr.address.address[3],
-                                                     cidr.address.address[4],
-                                                     cidr.address.address[5],
-                                                     cidr.address.address[6],
-                                                     cidr.address.address[7]), 
-                                                     cidr.prefix));
+        self.ip_addrs.as_mut().unwrap().push(IpCidr::new(
+            IpAddress::v6(
+                cidr.address.address[0],
+                cidr.address.address[1],
+                cidr.address.address[2],
+                cidr.address.address[3],
+                cidr.address.address[4],
+                cidr.address.address[5],
+                cidr.address.address[6],
+                cidr.address.address[7],
+            ),
+            cidr.prefix,
+        ));
     }
 
     pub fn add_default_v4_gateway(&mut self, address: CIpv4Address) {
-        self.default_v4_gw = Some(Ipv4Address::new(address.address[0],
-                                                   address.address[1],
-                                                   address.address[2],
-                                                   address.address[3]));
+        self.default_v4_gw = Some(Ipv4Address::new(
+            address.address[0],
+            address.address[1],
+            address.address[2],
+            address.address[3],
+        ));
     }
 
     pub fn add_default_v6_gateway(&mut self, address: CIpv6Address) {
-        self.default_v6_gw = Some(Ipv6Address::new(address.address[0],
-                                                   address.address[1],
-                                                   address.address[2],
-                                                   address.address[3],
-                                                   address.address[4],
-                                                   address.address[5],
-                                                   address.address[6],
-                                                   address.address[7]));
+        self.default_v6_gw = Some(Ipv6Address::new(
+            address.address[0],
+            address.address[1],
+            address.address[2],
+            address.address[3],
+            address.address[4],
+            address.address[5],
+            address.address[6],
+            address.address[7],
+        ));
     }
 
     pub fn finalize(&mut self) -> u8 {
         let routes_storage = BTreeMap::new();
         let mut routes = Routes::new(routes_storage);
         //TODO: return C error if something is wrong, no unwrap
-        routes.add_default_ipv4_route(self.default_v4_gw.unwrap()).unwrap();
-        routes.add_default_ipv6_route(self.default_v6_gw.unwrap()).unwrap();
+        routes
+            .add_default_ipv4_route(self.default_v4_gw.unwrap())
+            .unwrap();
+        routes
+            .add_default_ipv6_route(self.default_v6_gw.unwrap())
+            .unwrap();
         let interface = InterfaceBuilder::new(self.device.take().unwrap())
             .ip_addrs(self.ip_addrs.take().unwrap())
             .routes(routes)
             .finalize();
         self.interface = Some(interface);
         0
-    } 
+    }
 }
