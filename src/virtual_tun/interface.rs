@@ -54,7 +54,7 @@ pub extern "C" fn smol_stack_tun_receive_packet(data: *mut u8, len: usize, packe
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_add_socket(tun_smol_stack: &mut TunSmolStack, socket_type: u8) -> Box<SocketHandle>  {
+pub extern "C" fn smol_stack_add_socket(tun_smol_stack: &mut TunSmolStack, socket_type: u8) -> usize  {
     match socket_type {
         0 => tun_smol_stack.add_socket(SocketType::TCP),
         1 => tun_smol_stack.add_socket(SocketType::UDP),
@@ -63,17 +63,17 @@ pub extern "C" fn smol_stack_add_socket(tun_smol_stack: &mut TunSmolStack, socke
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_connect_ipv4(tun_smol_stack: &mut TunSmolStack, socket_handle: &SocketHandle, address: CIpv4Address, src_port: u16, dst_port: u16) -> u8 {
-    tun_smol_stack.connect_ipv4(socket_handle,address, src_port, dst_port)
+pub extern "C" fn smol_stack_connect_ipv4(tun_smol_stack: &mut TunSmolStack, socket_handle: usize, address: CIpv4Address, src_port: u16, dst_port: u16) -> u8 {
+    tun_smol_stack.connect_ipv4(socket_handle, address, src_port, dst_port)
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_connect_ipv6(tun_smol_stack: &mut TunSmolStack, socket_handle: &SocketHandle, address: CIpv6Address, src_port: u16, dst_port: u16) -> u8 {
+pub extern "C" fn smol_stack_connect_ipv6(tun_smol_stack: &mut TunSmolStack, socket_handle: usize, address: CIpv6Address, src_port: u16, dst_port: u16) -> u8 {
     tun_smol_stack.connect_ipv6(socket_handle, address, src_port, dst_port)
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_spin(tun_smol_stack: &mut TunSmolStack, socket_handle: &SocketHandle) {
+pub extern "C" fn smol_stack_spin(tun_smol_stack: &mut TunSmolStack, socket_handle: usize) {
     let timestamp = Instant::now();
     
     match tun_smol_stack.interface.as_mut().unwrap().poll(&mut tun_smol_stack.sockets, timestamp) {
@@ -83,7 +83,7 @@ pub extern "C" fn smol_stack_spin(tun_smol_stack: &mut TunSmolStack, socket_hand
         }
     }
 
-    let mut socket = tun_smol_stack.sockets.get(*socket_handle);
+    //let mut socket = tun_smol_stack.sockets.get(*socket_handle);
     //let local_port = 49152 + rand::random::<u16>() % 16384;
     //socket.connect((Ipv4Address::new(172, 217, 29, 14), 80), local_port).unwrap();
     /*
