@@ -83,9 +83,9 @@ pub extern "C" fn smol_stack_spin(tun_smol_stack: &mut TunSmolStack, socket_hand
         }
     }
 
-    let mut socket = tun_smol_stack.sockets.get::<TcpSocket>(*socket_handle);
-    let local_port = 49152 + rand::random::<u16>() % 16384;
-    socket.connect((Ipv4Address::new(172, 217, 29, 14), 80), local_port).unwrap();
+    let mut socket = tun_smol_stack.sockets.get(*socket_handle);
+    //let local_port = 49152 + rand::random::<u16>() % 16384;
+    //socket.connect((Ipv4Address::new(172, 217, 29, 14), 80), local_port).unwrap();
     /*
     state = match state {
         State::Connect if !socket.is_active() => {
