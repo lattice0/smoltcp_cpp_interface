@@ -4,18 +4,18 @@ use super::virtual_tun::VirtualTunInterface as TunDevice;
 use smoltcp::iface::{Interface, InterfaceBuilder, Routes};
 use smoltcp::phy::{self, Device};
 use smoltcp::socket::{
-    AnySocket, RawSocket, RawSocketBuffer, Socket, SocketHandle, SocketSet, TcpSocket, TcpSocketBuffer,
-    UdpSocket, UdpSocketBuffer,
+    AnySocket, RawSocket, RawSocketBuffer, Socket, SocketHandle, SocketSet, TcpSocket,
+    TcpSocketBuffer, UdpSocket, UdpSocketBuffer,
 };
 use smoltcp::storage::PacketMetadata;
 use smoltcp::wire::{
     IpAddress, IpCidr, IpEndpoint, IpProtocol, IpVersion, Ipv4Address, Ipv6Address,
 };
-use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::VecDeque;
+use std::rc::Rc;
 
 pub enum SocketType {
     RAW_IPV4,
@@ -25,8 +25,8 @@ pub enum SocketType {
 }
 
 pub struct Blob {
-    data: *mut u8, 
-    len: usize
+    data: *mut u8,
+    len: usize,
 }
 
 impl Drop for Blob {
@@ -37,21 +37,21 @@ impl Drop for Blob {
 
 pub struct SmolSocket {
     pub socket_handle: SocketHandle,
-    pub packets: VecDeque<Blob>
+    pub packets: VecDeque<Blob>,
 }
 
 impl SmolSocket {
-    pub fn new(socket_handle: SocketHandle) -> SmolSocket{
+    pub fn new(socket_handle: SocketHandle) -> SmolSocket {
         SmolSocket {
             socket_handle: socket_handle,
-            packets: VecDeque::new()
+            packets: VecDeque::new(),
         }
     }
 
     pub fn send(&mut self, data: *mut u8, len: usize) -> u8 {
         let blob = Blob {
             data: data,
-            len: len
+            len: len,
         };
         self.packets.push_back(blob);
         0
@@ -159,24 +159,13 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStack<'a, 'b, 'c> {
             Some(smol_socket) => {
                 let socket_handle = smol_socket.socket_handle;
                 let mut socket = self.sockets.get::<TcpSocket>(socket_handle);
-                let r = socket.connect(
-                    (
-                        Ipv4Address::new(
-                            address.address[0],
-                            address.address[1],
-                            address.address[2],
-                            address.address[3],
-                        ),
-                        dst_port,
-                    ),
-                    src_port,
-                );
+                let r = socket.connect((Into::<Ipv4Address>::into(address), dst_port), src_port);
                 match r {
                     Ok(_) => 0,
                     _ => 2,
                 }
             }
-            None => 1
+            None => 1,
         }
     }
 
@@ -192,79 +181,36 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStack<'a, 'b, 'c> {
             Some(smol_socket) => {
                 let socket_handle = smol_socket.socket_handle;
                 let mut socket = self.sockets.get::<TcpSocket>(socket_handle);
-                let r = socket.connect(
-                    (
-                        Ipv6Address::new(
-                            address.address[0],
-                            address.address[1],
-                            address.address[2],
-                            address.address[3],
-                            address.address[4],
-                            address.address[5],
-                            address.address[6],
-                            address.address[7],
-                        ),
-                        dst_port,
-                    ),
-                    src_port,
-                );
+                let r = socket.connect((Into::<Ipv6Address>::into(address), dst_port), src_port);
                 match r {
                     Ok(_) => 0,
                     _ => 2,
                 }
             }
-            None => 1
+            None => 1,
         }
     }
 
     pub fn add_ipv4_address(&mut self, cidr: CIpv4Cidr) {
         self.ip_addrs.as_mut().unwrap().push(IpCidr::new(
-            IpAddress::v4(
-                cidr.address.address[0],
-                cidr.address.address[1],
-                cidr.address.address[2],
-                cidr.address.address[3],
-            ),
+            Into::<IpAddress>::into(cidr.address),
             cidr.prefix,
         ));
     }
 
     pub fn add_ipv6_address(&mut self, cidr: CIpv6Cidr) {
         self.ip_addrs.as_mut().unwrap().push(IpCidr::new(
-            IpAddress::v6(
-                cidr.address.address[0],
-                cidr.address.address[1],
-                cidr.address.address[2],
-                cidr.address.address[3],
-                cidr.address.address[4],
-                cidr.address.address[5],
-                cidr.address.address[6],
-                cidr.address.address[7],
-            ),
+            Into::<IpAddress>::into(cidr.address),
             cidr.prefix,
         ));
     }
 
     pub fn add_default_v4_gateway(&mut self, address: CIpv4Address) {
-        self.default_v4_gw = Some(Ipv4Address::new(
-            address.address[0],
-            address.address[1],
-            address.address[2],
-            address.address[3],
-        ));
+        self.default_v4_gw = Some(Into::<Ipv4Address>::into(address));
     }
 
     pub fn add_default_v6_gateway(&mut self, address: CIpv6Address) {
-        self.default_v6_gw = Some(Ipv6Address::new(
-            address.address[0],
-            address.address[1],
-            address.address[2],
-            address.address[3],
-            address.address[4],
-            address.address[5],
-            address.address[6],
-            address.address[7],
-        ));
+        self.default_v6_gw = Some(Into::<Ipv6Address>::into(address));
     }
 
     pub fn finalize(&mut self) -> u8 {

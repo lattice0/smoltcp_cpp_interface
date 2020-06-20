@@ -6,7 +6,7 @@ use std::ffi::CStr;
 use smoltcp::socket::{SocketHandle, TcpSocket};
 use super::smol_stack::{TunSmolStack, SocketType};
 use smoltcp::time::Instant;
-use smoltcp::wire::{Ipv4Address, Ipv6Address, IpAddress, IpCidr};
+use smoltcp::wire::{Ipv4Address, Ipv6Address, IpAddress,IpCidr};
 
 type OnPacketToOutside = unsafe extern "C" fn(data: *mut u8, len: usize, packet_type: u8) -> c_int;
 static mut onPacketToOutside: Option<OnPacketToOutside> = None;
@@ -16,9 +16,62 @@ pub struct CIpv4Address {
     pub address: [u8; 4],
 }
 
+impl Into<Ipv4Address> for CIpv4Address {
+    fn into(self) -> Ipv4Address {
+        Ipv4Address::new(
+            self.address[0],
+            self.address[1],
+            self.address[2],
+            self.address[3],
+        )
+    }
+}
+
+
+impl Into<IpAddress> for CIpv4Address {
+    fn into(self) -> IpAddress {
+        IpAddress::v4(
+            self.address[0],
+            self.address[1],
+            self.address[2],
+            self.address[3],
+        )
+    }
+}
+
 #[repr(C)]
 pub struct CIpv6Address {
     pub address: [u16; 8],
+}
+
+impl Into<Ipv6Address> for CIpv6Address {
+    fn into(self) -> Ipv6Address {
+        Ipv6Address::new(
+            self.address[0],
+            self.address[1],
+            self.address[2],
+            self.address[3],
+            self.address[4],
+            self.address[5],
+            self.address[6],
+            self.address[7],
+        )
+    }
+}
+
+impl Into<IpAddress> for CIpv6Address {
+    fn into(self) -> IpAddress {
+        IpAddress::v6(
+            self.address[0],
+            self.address[1],
+            self.address[2],
+            self.address[3],
+            self.address[4],
+            self.address[5],
+            self.address[6],
+            self.address[7],
+        )
+    }
 }
 
 #[repr(C)]
@@ -48,6 +101,7 @@ pub extern "C" fn smol_stack_tun_smol_stack_new<'a, 'b: 'a, 'c: 'a + 'b>(interfa
     TunSmolStack::new(s)
 }
 
+#[no_mangle]
 pub extern "C" fn smol_stack_tun_smol_socket_send(tun_smol_stack: &mut TunSmolStack, socket_handle_key: usize, data: *mut u8, len: usize) -> u8 {
     let smol_socket = tun_smol_stack.get_smol_socket(socket_handle_key);
     match smol_socket {
