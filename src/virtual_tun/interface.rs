@@ -48,9 +48,13 @@ pub extern "C" fn smol_stack_tun_smol_stack_new<'a, 'b: 'a, 'c: 'a + 'b>(interfa
     TunSmolStack::new(s)
 }
 
+pub extern "C" fn smol_stack_tun_smol_socket_push_blob(tun_smol_stack: &mut TunSmolStack, socket_handle: usize, data: *mut u8, len: usize) {
+    tun_smol_stack
+}
+
 //packets (ethernet, ip, tcp, etc) from the world to the stack
 pub extern "C" fn smol_stack_tun_receive_packet(data: *mut u8, len: usize, packet_type: u8) {
-
+    
 }
 
 #[no_mangle]

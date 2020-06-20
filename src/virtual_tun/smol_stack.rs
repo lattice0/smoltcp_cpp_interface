@@ -29,24 +29,43 @@ pub struct Blob {
     len: usize
 }
 
-pub struct SmolSocket<'a, 'b: 'a, 'c: 'a + 'b> {
-    pub tun_smol_stack: Rc<RefCell<TunSmolStack<'a, 'b, 'c>>>,
+impl Drop for Blob {
+    fn drop(&mut self) {
+        //
+    }
+}
+
+pub struct SmolSocket {
+    pub socket_handle: SocketHandle,
     pub packets: VecDeque<Blob>
 }
 
-impl<'a, 'b: 'a, 'c: 'a + 'b> SmolSocket<'a, 'b, 'c> {
-    pub fn new(interface_name: String, tun_smol_stack: Rc<RefCell<TunSmolStack<'a, 'b, 'c>>>) -> Rc<RefCell<SmolSocket<'a, 'b, 'c>> {
+impl SmolSocket {
+    pub fn new(socket_handle: SocketHandle) -> SmolSocket{
         SmolSocket {
-            tun_smol_stack: tun_smol_stack,
+            socket_handle: socket_handle,
             packets: VecDeque::new()
         }
+    }
+
+    pub fn push_blob(&mut self, data: *mut u8, len: usize) -> u8 {
+        let blob = Blob {
+            data: data,
+            len: len
+        };
+        self.packets.push_back(blob);
+        0
+    }
+
+    pub fn pop_blob(&mut self) -> Option<Blob> {
+        self.packets.pop_front()
     }
 }
 
 pub struct TunSmolStack<'a, 'b: 'a, 'c: 'a + 'b> {
     pub sockets: SocketSet<'a, 'b, 'c>,
     current_key: usize,
-    socket_handles: HashMap<usize, SocketHandle>,
+    smol_sockets: HashMap<usize, SmolSocket>,
     device: Option<TunDevice>,
     ip_addrs: Option<std::vec::Vec<IpCidr>>,
     default_v4_gw: Option<Ipv4Address>,
@@ -63,7 +82,7 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStack<'a, 'b, 'c> {
         Box::new(TunSmolStack {
             sockets: socket_set,
             current_key: 0,
-            socket_handles: HashMap::new(),
+            smol_sockets: HashMap::new(),
             device: Some(device),
             ip_addrs: Some(ip_addrs),
             default_v4_gw: None,
@@ -86,7 +105,8 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStack<'a, 'b, 'c> {
                 let socket = TcpSocket::new(rx_buffer, tx_buffer);
                 let handle = self.sockets.add(socket);
                 let handke_key = self.new_socket_handle_key();
-                self.socket_handles.insert(handke_key, handle);
+                let smol_socket = SmolSocket::new(handle);
+                self.smol_sockets.insert(handke_key, smol_socket);
                 handke_key
             }
             SocketType::UDP => {
@@ -95,7 +115,8 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStack<'a, 'b, 'c> {
                 let socket = UdpSocket::new(rx_buffer, tx_buffer);
                 let handle = self.sockets.add(socket);
                 let handke_key = self.new_socket_handle_key();
-                self.socket_handles.insert(handke_key, handle);
+                let smol_socket = SmolSocket::new(handle);
+                self.smol_sockets.insert(handke_key, smol_socket);
                 handke_key
             }
             /*
@@ -128,10 +149,11 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStack<'a, 'b, 'c> {
         src_port: u16,
         dst_port: u16,
     ) -> u8 {
-        let mut socket_handle_ = self.socket_handles.get(&socket_handle);
-        match socket_handle_ {
-            Some(socket_handle__) => {
-                let mut socket = self.sockets.get::<TcpSocket>(*socket_handle__);
+        let mut smol_socket_ = self.smol_sockets.get(&socket_handle);
+        match smol_socket_ {
+            Some(smol_socket) => {
+                let socket_handle = smol_socket.socket_handle;
+                let mut socket = self.sockets.get::<TcpSocket>(socket_handle);
                 let r = socket.connect(
                     (
                         Ipv4Address::new(
@@ -160,10 +182,11 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStack<'a, 'b, 'c> {
         src_port: u16,
         dst_port: u16,
     ) -> u8 {
-        let mut socket_handle_ = self.socket_handles.get(&socket_handle);
-        match socket_handle_ {
-            Some(socket_handle__) => {
-                let mut socket = self.sockets.get::<TcpSocket>(*socket_handle__);
+        let mut smol_socket_ = self.smol_sockets.get(&socket_handle);
+        match smol_socket_ {
+            Some(smol_socket) => {
+                let socket_handle = smol_socket.socket_handle;
+                let mut socket = self.sockets.get::<TcpSocket>(socket_handle);
                 let r = socket.connect(
                     (
                         Ipv6Address::new(
