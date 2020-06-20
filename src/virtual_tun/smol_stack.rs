@@ -4,7 +4,7 @@ use super::virtual_tun::VirtualTunInterface as TunDevice;
 use smoltcp::iface::{Interface, InterfaceBuilder, Routes};
 use smoltcp::phy::{self, Device};
 use smoltcp::socket::{
-    RawSocket, RawSocketBuffer, Socket, SocketHandle, SocketSet, TcpSocket, TcpSocketBuffer,
+    AnySocket, RawSocket, RawSocketBuffer, Socket, SocketHandle, SocketSet, TcpSocket, TcpSocketBuffer,
     UdpSocket, UdpSocketBuffer,
 };
 use smoltcp::storage::PacketMetadata;
@@ -48,7 +48,7 @@ impl SmolSocket {
         }
     }
 
-    pub fn push_blob(&mut self, data: *mut u8, len: usize) -> u8 {
+    pub fn send(&mut self, data: *mut u8, len: usize) -> u8 {
         let blob = Blob {
             data: data,
             len: len
@@ -142,14 +142,19 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStack<'a, 'b, 'c> {
         }
     }
 
-    pub fn connect_ipv4(
+    pub fn get_smol_socket(&mut self, socket_handle_key: usize) -> Option<&mut SmolSocket> {
+        let smol_socket = self.smol_sockets.get_mut(&socket_handle_key);
+        smol_socket
+    }
+
+    pub fn tcp_connect_ipv4(
         &mut self,
-        socket_handle: usize,
+        socket_handle_key: usize,
         address: CIpv4Address,
         src_port: u16,
         dst_port: u16,
     ) -> u8 {
-        let mut smol_socket_ = self.smol_sockets.get(&socket_handle);
+        let mut smol_socket_ = self.smol_sockets.get(&socket_handle_key);
         match smol_socket_ {
             Some(smol_socket) => {
                 let socket_handle = smol_socket.socket_handle;
@@ -175,14 +180,14 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStack<'a, 'b, 'c> {
         }
     }
 
-    pub fn connect_ipv6(
+    pub fn tcp_connect_ipv6(
         &mut self,
-        socket_handle: usize,
+        socket_handle_key: usize,
         address: CIpv6Address,
         src_port: u16,
         dst_port: u16,
     ) -> u8 {
-        let mut smol_socket_ = self.smol_sockets.get(&socket_handle);
+        let mut smol_socket_ = self.smol_sockets.get(&socket_handle_key);
         match smol_socket_ {
             Some(smol_socket) => {
                 let socket_handle = smol_socket.socket_handle;

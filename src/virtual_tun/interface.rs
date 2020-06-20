@@ -48,8 +48,15 @@ pub extern "C" fn smol_stack_tun_smol_stack_new<'a, 'b: 'a, 'c: 'a + 'b>(interfa
     TunSmolStack::new(s)
 }
 
-pub extern "C" fn smol_stack_tun_smol_socket_push_blob(tun_smol_stack: &mut TunSmolStack, socket_handle: usize, data: *mut u8, len: usize) {
-    tun_smol_stack
+pub extern "C" fn smol_stack_tun_smol_socket_send(tun_smol_stack: &mut TunSmolStack, socket_handle_key: usize, data: *mut u8, len: usize) -> u8 {
+    let smol_socket = tun_smol_stack.get_smol_socket(socket_handle_key);
+    match smol_socket {
+        Some(smol_socket_) => {
+            smol_socket_.send(data, len);
+            0
+        }
+        None => 1
+    }
 }
 
 //packets (ethernet, ip, tcp, etc) from the world to the stack
@@ -67,17 +74,17 @@ pub extern "C" fn smol_stack_add_socket(tun_smol_stack: &mut TunSmolStack, socke
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_connect_ipv4(tun_smol_stack: &mut TunSmolStack, socket_handle: usize, address: CIpv4Address, src_port: u16, dst_port: u16) -> u8 {
-    tun_smol_stack.connect_ipv4(socket_handle, address, src_port, dst_port)
+pub extern "C" fn smol_stack_tcp_connect_ipv4(tun_smol_stack: &mut TunSmolStack, socket_handle_key: usize, address: CIpv4Address, src_port: u16, dst_port: u16) -> u8 {
+    tun_smol_stack.tcp_connect_ipv4(socket_handle_key, address, src_port, dst_port)
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_connect_ipv6(tun_smol_stack: &mut TunSmolStack, socket_handle: usize, address: CIpv6Address, src_port: u16, dst_port: u16) -> u8 {
-    tun_smol_stack.connect_ipv6(socket_handle, address, src_port, dst_port)
+pub extern "C" fn smol_stack_tcp_connect_ipv6(tun_smol_stack: &mut TunSmolStack, socket_handle_key: usize, address: CIpv6Address, src_port: u16, dst_port: u16) -> u8 {
+    tun_smol_stack.tcp_connect_ipv6(socket_handle_key, address, src_port, dst_port)
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_spin(tun_smol_stack: &mut TunSmolStack, socket_handle: usize) {
+pub extern "C" fn smol_stack_spin(tun_smol_stack: &mut TunSmolStack, socket_handle_key: usize) {
     let timestamp = Instant::now();
     
     match tun_smol_stack.interface.as_mut().unwrap().poll(&mut tun_smol_stack.sockets, timestamp) {
