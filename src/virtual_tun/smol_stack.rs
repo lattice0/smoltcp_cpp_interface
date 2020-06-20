@@ -154,7 +154,7 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStack<'a, 'b, 'c> {
         src_port: u16,
         dst_port: u16,
     ) -> u8 {
-        let mut smol_socket_ = self.smol_sockets.get(&socket_handle_key);
+        let smol_socket_ = self.smol_sockets.get(&socket_handle_key);
         match smol_socket_ {
             Some(smol_socket) => {
                 let socket_handle = smol_socket.socket_handle;
@@ -176,7 +176,7 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStack<'a, 'b, 'c> {
         src_port: u16,
         dst_port: u16,
     ) -> u8 {
-        let mut smol_socket_ = self.smol_sockets.get(&socket_handle_key);
+        let smol_socket_ = self.smol_sockets.get(&socket_handle_key);
         match smol_socket_ {
             Some(smol_socket) => {
                 let socket_handle = smol_socket.socket_handle;
