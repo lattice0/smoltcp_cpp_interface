@@ -31,6 +31,7 @@ pub enum SocketType {
 pub struct Blob {
     data: *mut u8,
     len: usize,
+    start: usize,
 }
 
 pub struct Packet {
@@ -49,22 +50,8 @@ pub struct SmolSocket {
     pub socket_type: SocketType,
     pub socket_handle: SocketHandle,
     pub packets: Arc<Mutex<VecDeque<Packet>>>,
-}
-
-pub trait SocketInterface {
-    fn send_slice(&mut self, data: &[u8]);
-}
-
-impl<'a> SocketInterface for SocketRef<'a, TcpSocket<'a>> {
-    fn send_slice(&mut self, data: &[u8]) {
-        self.send_slice(data);
-    }
-}
-
-impl<'a, 'b> SocketInterface for SocketRef<'a, UdpSocket<'a, 'b>> {
-    fn send_slice(&mut self, data: &[u8]) {
-        self.send_slice(data);
-    }
+    //If we couldn't send entire packet at once, hold it here for next send
+    current: Option<Packet>
 }
 
 impl SmolSocket {
@@ -73,6 +60,7 @@ impl SmolSocket {
             socket_type: socket_type,
             socket_handle: socket_handle,
             packets: Arc::new(Mutex::new(VecDeque::new())),
+            current: None
         }
     }
 
@@ -85,7 +73,8 @@ impl SmolSocket {
             socket_type: self.socket_type,
             blob: Blob {
                 data: data,
-                len: len
+                len: len,
+                start: 0
             },
             endpoint: endpoint
         };
@@ -93,8 +82,15 @@ impl SmolSocket {
         0
     }
 
-    pub fn pop_blob(&mut self) -> Option<Packet> {
-        self.packets.lock().unwrap().pop_front()
+    pub fn get_latest_packet(&mut self) -> Option<Packet> {
+        //If the last step couldn't send the entire blob,
+        //the packet is in `self.current`, so we return it again
+        //otherwise we return a fresh packet from the queue
+        match self.current {
+            Some(packet) => Some(packet),
+            None => self.packets.lock().unwrap().pop_front()
+        }
+        
     }
 }
 
@@ -267,12 +263,49 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStack<'a, 'b, 'c> {
         0
     }
 
-    pub fn spin(&mut self) {
+    pub fn spin(&mut self, socket_handle_key: usize) -> u8{
+        let smol_socket = self.smol_sockets.get_mut(&socket_handle_key).unwrap();
+        match smol_socket.socket_type {
+            SocketType::TCP => {
+                let mut socket = self.sockets.get::<TcpSocket>(smol_socket.socket_handle);
+                let packet: Packet;
+                //TODO: see if I should really unwrap this
+                packet = smol_socket.get_latest_packet().unwrap();
+                //TODO: send correct slice
+                let bytes_sent = socket.send_slice(&[]);
+                match bytes_sent {
+                    Ok(b) => {
+                        //Sent less than entire packet, so we must put this packet 
+                        //in `smol_socket.current` so it's returned the next time
+                        //so we can continue sending it
+                        if b < packet.blob.len {
+                            smol_socket.current = Some(packet);
+                            //TODO: put packet in smol_socket.current
+                            0
+                        } else {
+                            //Sent the entire packet, nothing needs to be done
+                            0
+                        }
+                    }
+                    Err(e) => {
+                        1
+                    }
+                }
+            }
+            SocketType::UDP => {
+                0
+            }
+            SocketType::ICMP => {
+                0
+            }
+        }
+        /*
         let timestamp = Instant::now();
-
         match self.interface.as_mut().unwrap().poll(&mut self.sockets, timestamp)
         {
             Ok(_) => {
+                
+                sockets.iter_mut().filter_map(TcpSocket::downcast);
                 let socket_interface: Box<dyn SocketInterface>;
                 for socket in self.sockets.iter_mut() {
                     socket_interface = Box::new(socket.socket.unwrap());
@@ -287,10 +320,13 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStack<'a, 'b, 'c> {
                         State::Response
                     }
                 }
+                
             }
             Err(e) => {
                 //debug!("poll error: {}",e);
             }
+            
         }
+        */
     }
 }
