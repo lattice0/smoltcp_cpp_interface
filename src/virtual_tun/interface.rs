@@ -138,29 +138,8 @@ pub extern "C" fn smol_stack_tcp_connect_ipv6(tun_smol_stack: &mut TunSmolStack,
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_spin(tun_smol_stack: &mut TunSmolStack, socket_handle_key: usize) {
-    let timestamp = Instant::now();
-    
-    match tun_smol_stack.interface.as_mut().unwrap().poll(&mut tun_smol_stack.sockets, timestamp) {
-        Ok(_) => {},
-        Err(e) => {
-            //debug!("poll error: {}",e);
-        }
-    }
-
-    //let mut socket = tun_smol_stack.sockets.get(*socket_handle);
-    //let local_port = 49152 + rand::random::<u16>() % 16384;
-    //socket.connect((Ipv4Address::new(172, 217, 29, 14), 80), local_port).unwrap();
-    /*
-    state = match state {
-        State::Connect if !socket.is_active() => {
-            debug!("connecting");
-            let local_port = 49152 + rand::random::<u16>() % 16384;
-            socket.connect((address, url.port().unwrap_or(80)), local_port).unwrap();
-            State::Request
-        }
-    }
-    */
+pub extern "C" fn smol_stack_spin(tun_smol_stack: &mut TunSmolStack) {
+    tun_smol_stack.spin()
 }
 
 #[no_mangle]

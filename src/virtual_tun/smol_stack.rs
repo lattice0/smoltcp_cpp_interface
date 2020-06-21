@@ -4,10 +4,11 @@ use super::virtual_tun::VirtualTunInterface as TunDevice;
 use smoltcp::iface::{Interface, InterfaceBuilder, Routes};
 use smoltcp::phy::{self, Device};
 use smoltcp::socket::{
-    AnySocket, RawSocket, RawSocketBuffer, Socket, SocketHandle, SocketSet, TcpSocket,
+    SocketRef, AnySocket, RawSocket, RawSocketBuffer, Socket, SocketHandle, SocketSet, TcpSocket,
     TcpSocketBuffer, UdpSocket, UdpSocketBuffer,
 };
 use smoltcp::storage::PacketMetadata;
+use smoltcp::time::Instant;
 use smoltcp::wire::{
     IpAddress, IpCidr, IpEndpoint, IpProtocol, IpVersion, Ipv4Address, Ipv6Address,
 };
@@ -16,10 +17,13 @@ use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
+#[derive(PartialEq)]
 pub enum SocketType {
     RAW_IPV4,
     RAW_IPV6,
+    ICMP,
     TCP,
     UDP,
 }
@@ -29,6 +33,12 @@ pub struct Blob {
     len: usize,
 }
 
+pub struct Packet {
+    socket_type: SocketType,
+    blob: Blob,
+    endpoint: Option<IpEndpoint>
+}
+
 impl Drop for Blob {
     fn drop(&mut self) {
         //
@@ -36,29 +46,55 @@ impl Drop for Blob {
 }
 
 pub struct SmolSocket {
+    pub socket_type: SocketType,
     pub socket_handle: SocketHandle,
-    pub packets: VecDeque<Blob>,
+    pub packets: Arc<Mutex<VecDeque<Packet>>>,
+}
+
+pub trait SocketInterface {
+    fn send_slice(&mut self, data: &[u8]);
+}
+
+impl<'a> SocketInterface for SocketRef<'a, TcpSocket<'a>> {
+    fn send_slice(&mut self, data: &[u8]) {
+        self.send_slice(data);
+    }
+}
+
+impl<'a, 'b> SocketInterface for SocketRef<'a, UdpSocket<'a, 'b>> {
+    fn send_slice(&mut self, data: &[u8]) {
+        self.send_slice(data);
+    }
 }
 
 impl SmolSocket {
-    pub fn new(socket_handle: SocketHandle) -> SmolSocket {
+    pub fn new(socket_handle: SocketHandle, socket_type: SocketType) -> SmolSocket {
         SmolSocket {
+            socket_type: socket_type,
             socket_handle: socket_handle,
-            packets: VecDeque::new(),
+            packets: Arc::new(Mutex::new(VecDeque::new())),
         }
     }
 
-    pub fn send(&mut self, data: *mut u8, len: usize) -> u8 {
-        let blob = Blob {
-            data: data,
-            len: len,
+    pub fn send(&mut self, data: *mut u8, len: usize, endpoint: Option<IpEndpoint>) -> u8 {
+        if endpoint.is_none() && (self.socket_type == SocketType::UDP ||
+        self.socket_type == SocketType::ICMP) {
+            panic!("this socket type needs an endpoint to send to");
+        }
+        let packet = Packet {
+            socket_type: self.socket_type,
+            blob: Blob {
+                data: data,
+                len: len
+            },
+            endpoint: endpoint
         };
-        self.packets.push_back(blob);
+        self.packets.lock().unwrap().push_back(packet);
         0
     }
 
-    pub fn pop_blob(&mut self) -> Option<Blob> {
-        self.packets.pop_front()
+    pub fn pop_blob(&mut self) -> Option<Packet> {
+        self.packets.lock().unwrap().pop_front()
     }
 }
 
@@ -105,7 +141,7 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStack<'a, 'b, 'c> {
                 let socket = TcpSocket::new(rx_buffer, tx_buffer);
                 let handle = self.sockets.add(socket);
                 let handke_key = self.new_socket_handle_key();
-                let smol_socket = SmolSocket::new(handle);
+                let smol_socket = SmolSocket::new(handle, SocketType::TCP);
                 self.smol_sockets.insert(handke_key, smol_socket);
                 handke_key
             }
@@ -115,7 +151,7 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStack<'a, 'b, 'c> {
                 let socket = UdpSocket::new(rx_buffer, tx_buffer);
                 let handle = self.sockets.add(socket);
                 let handke_key = self.new_socket_handle_key();
-                let smol_socket = SmolSocket::new(handle);
+                let smol_socket = SmolSocket::new(handle, SocketType::UDP);
                 self.smol_sockets.insert(handke_key, smol_socket);
                 handke_key
             }
@@ -229,5 +265,32 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStack<'a, 'b, 'c> {
             .finalize();
         self.interface = Some(interface);
         0
+    }
+
+    pub fn spin(&mut self) {
+        let timestamp = Instant::now();
+
+        match self.interface.as_mut().unwrap().poll(&mut self.sockets, timestamp)
+        {
+            Ok(_) => {
+                let socket_interface: Box<dyn SocketInterface>;
+                for socket in self.sockets.iter_mut() {
+                    socket_interface = Box::new(socket.socket.unwrap());
+                    if socket.may_send() {
+                        socket.send_slice(b"\r\n").expect("cannot send");
+                    }
+                    if socket.can_recv() => {
+                        socket.recv(|data| {
+                            println!("{}", str::from_utf8(data).unwrap_or("(invalid utf8)"));
+                            (data.len(), ())
+                        }).unwrap();
+                        State::Response
+                    }
+                }
+            }
+            Err(e) => {
+                //debug!("poll error: {}",e);
+            }
+        }
     }
 }
