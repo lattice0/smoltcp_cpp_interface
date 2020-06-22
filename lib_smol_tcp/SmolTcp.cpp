@@ -42,7 +42,11 @@ int main() {
     uint8_t result = tunSmolStack.finalize();
 
     if (result==0) {
-        tunSmolStack.spin(socketHandle, handle);
+        //socketLoop(tunSmolStack, handle);
+        while (true) {
+            tunSmolStack.poll();
+            tunSmolStack.spin(handle);
+        }
     } else {
         //throw
         std::cout << "error on finalize" << std::endl;
@@ -51,3 +55,5 @@ int main() {
     getchar();
     return 0;
 }
+
+

@@ -103,11 +103,11 @@ public:
         return smol_stack_add_socket(tunSmolStackPtr, socketType);
     }
 
-    void poll(SocketHandleKey SocketHandleKey) {
+    void poll() {
         smol_stack_poll(tunSmolStackPtr);
     }
 
-    void spin(SocketHandleKey SocketHandleKey, size_t handle) {
+    void spin(size_t handle) {
         smol_stack_spin(tunSmolStackPtr, handle);
     }
 
