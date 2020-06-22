@@ -53,25 +53,27 @@ int main()
             tunSmolStack.poll();
             if (state == State::Connect)
             {
+                std::cout << "connecting..." << std::endl;
                 uint16_t randomOutputPort = tunSmolStack.randomOutputPort();
                 tunSmolStack.connectIpv4(CIpv4Address{
-                                             {192, 168, 69, 1}},
+                                             {172,217,28,238}},
                                          randomOutputPort, 80);
                 state = State::Request;
             }
             if (state == State::Request)
             {
-                std::string httpRequestData("GET /hello.htm HTTP/1.1\r\n\
-                    Host: www.tutorialspoint.com\r\n\
+                std::string httpRequestData("GET /index.html HTTP/1.1\r\n\
+                    Host: www.google.com\r\n\
                     Connection: Keep-Alive\r\n\
                     \r\n");
+                std::cout << "HTTP: " << httpRequestData << std::endl;
                 const uint8_t* httpRequestDataBuffer = reinterpret_cast<const uint8_t*>(httpRequestData.c_str());
                 tunSmolStack.send(smolSocketHandle, httpRequestDataBuffer, httpRequestData.size(), endpointNone);
                 state = State::Response;
             }
             if (state == State::Response)
             {
-                
+
             }
             tunSmolStack.spin(smolSocketHandle);
         }
