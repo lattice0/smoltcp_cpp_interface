@@ -97,7 +97,7 @@ impl SmolSocket {
     }
 }
 
-pub struct TunSmolStack<'a, 'b: 'a, 'c: 'a + 'b> {
+pub struct SmolStack<'a, 'b: 'a, 'c: 'a + 'b> {
     pub sockets: SocketSet<'a, 'b, 'c>,
     current_key: usize,
     smol_sockets: HashMap<usize, SmolSocket>,
@@ -108,13 +108,13 @@ pub struct TunSmolStack<'a, 'b: 'a, 'c: 'a + 'b> {
     pub interface: Option<Interface<'a, 'b, 'c, TunDevice>>,
 }
 
-impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStack<'a, 'b, 'c> {
-    pub fn new(interface_name: String) -> Box<TunSmolStack<'a, 'b, 'c>> {
+impl<'a, 'b: 'a, 'c: 'a + 'b> SmolStack<'a, 'b, 'c> {
+    pub fn new(interface_name: String) -> Box<SmolStack<'a, 'b, 'c>> {
         let socket_set = SocketSet::new(vec![]);
         let device = TunDevice::new(interface_name.as_str()).unwrap();
         let ip_addrs = std::vec::Vec::new();
 
-        Box::new(TunSmolStack {
+        Box::new(SmolStack {
             sockets: socket_set,
             current_key: 0,
             smol_sockets: HashMap::new(),

@@ -4,7 +4,7 @@ use std::str::{self};
 use std::os::raw::{c_int, c_char};
 use std::ffi::CStr;
 use smoltcp::socket::{SocketHandle, TcpSocket};
-use super::smol_stack::{TunSmolStack, SocketType};
+use super::smol_stack::{SmolStack, SocketType};
 use smoltcp::time::Instant;
 use smoltcp::wire::{Ipv4Address, Ipv6Address, IpAddress, IpCidr, IpEndpoint};
 
@@ -131,16 +131,16 @@ pub extern "C" fn registerOnPacketToOutside(callback: Option<OnPacketToOutside>)
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_tun_smol_stack_new<'a, 'b: 'a, 'c: 'a + 'b>(interface_name: *const c_char) -> Box<TunSmolStack<'a, 'b, 'c>> {
+pub extern "C" fn smol_stack_smol_stack_new<'a, 'b: 'a, 'c: 'a + 'b>(interface_name: *const c_char) -> Box<SmolStack<'a, 'b, 'c>> {
     let interface_name_c_str: &CStr = unsafe { CStr::from_ptr(interface_name) };
     let interface_name_slice: &str = interface_name_c_str.to_str().unwrap();
     let s: String = interface_name_slice.to_owned();
-    TunSmolStack::new(s)
+    SmolStack::new(s)
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_tun_smol_socket_send(tun_smol_stack: &mut TunSmolStack, socket_handle_key: usize, data: *mut u8, len: usize, endpoint: CIpEndpoint) -> u8 {
-    let smol_socket = tun_smol_stack.get_smol_socket(socket_handle_key);
+pub extern "C" fn smol_stack_smol_socket_send(smol_stack: &mut SmolStack, socket_handle_key: usize, data: *mut u8, len: usize, endpoint: CIpEndpoint) -> u8 {
+    let smol_socket = smol_stack.get_smol_socket(socket_handle_key);
     match smol_socket {
         Some(smol_socket_) => {
             smol_socket_.send(data, len, Into::<Option<IpEndpoint>>::into(endpoint));
@@ -151,60 +151,60 @@ pub extern "C" fn smol_stack_tun_smol_socket_send(tun_smol_stack: &mut TunSmolSt
 }
 
 //packets (ethernet, ip, tcp, etc) from the world to the stack
-pub extern "C" fn smol_stack_tun_receive_packet(data: *mut u8, len: usize, packet_type: u8) {
+pub extern "C" fn smol_stack_receive_packet(data: *mut u8, len: usize, packet_type: u8) {
     
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_add_socket(tun_smol_stack: &mut TunSmolStack, socket_type: u8) -> usize  {
+pub extern "C" fn smol_stack_add_socket(smol_stack: &mut SmolStack, socket_type: u8) -> usize  {
     match socket_type {
-        0 => tun_smol_stack.add_socket(SocketType::TCP),
-        1 => tun_smol_stack.add_socket(SocketType::UDP),
+        0 => smol_stack.add_socket(SocketType::TCP),
+        1 => smol_stack.add_socket(SocketType::UDP),
         _ => panic!("wrong type")
     }
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_tcp_connect_ipv4(tun_smol_stack: &mut TunSmolStack, socket_handle_key: usize, address: CIpv4Address, src_port: u16, dst_port: u16) -> u8 {
-    tun_smol_stack.tcp_connect_ipv4(socket_handle_key, address, src_port, dst_port)
+pub extern "C" fn smol_stack_tcp_connect_ipv4(smol_stack: &mut SmolStack, socket_handle_key: usize, address: CIpv4Address, src_port: u16, dst_port: u16) -> u8 {
+    smol_stack.tcp_connect_ipv4(socket_handle_key, address, src_port, dst_port)
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_tcp_connect_ipv6(tun_smol_stack: &mut TunSmolStack, socket_handle_key: usize, address: CIpv6Address, src_port: u16, dst_port: u16) -> u8 {
-    tun_smol_stack.tcp_connect_ipv6(socket_handle_key, address, src_port, dst_port)
+pub extern "C" fn smol_stack_tcp_connect_ipv6(smol_stack: &mut SmolStack, socket_handle_key: usize, address: CIpv6Address, src_port: u16, dst_port: u16) -> u8 {
+    smol_stack.tcp_connect_ipv6(socket_handle_key, address, src_port, dst_port)
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_poll(tun_smol_stack: &mut TunSmolStack) -> u8 {
-    tun_smol_stack.poll()
+pub extern "C" fn smol_stack_poll(smol_stack: &mut SmolStack) -> u8 {
+    smol_stack.poll()
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_spin(tun_smol_stack: &mut TunSmolStack, socket_handle_key: usize) -> u8 {
-    tun_smol_stack.spin(socket_handle_key)
+pub extern "C" fn smol_stack_spin(smol_stack: &mut SmolStack, socket_handle_key: usize) -> u8 {
+    smol_stack.spin(socket_handle_key)
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_add_ipv4_address(tun_smol_stack: &mut TunSmolStack, cidr: CIpv4Cidr) {
-    tun_smol_stack.add_ipv4_address(cidr);
+pub extern "C" fn smol_stack_add_ipv4_address(smol_stack: &mut SmolStack, cidr: CIpv4Cidr) {
+    smol_stack.add_ipv4_address(cidr);
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_add_ipv6_address(tun_smol_stack: &mut TunSmolStack, cidr: CIpv6Cidr) {
-    tun_smol_stack.add_ipv6_address(cidr);
+pub extern "C" fn smol_stack_add_ipv6_address(smol_stack: &mut SmolStack, cidr: CIpv6Cidr) {
+    smol_stack.add_ipv6_address(cidr);
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_add_default_v4_gateway(tun_smol_stack: &mut TunSmolStack, address: CIpv4Address) {
-    tun_smol_stack.add_default_v4_gateway(address);
+pub extern "C" fn smol_stack_add_default_v4_gateway(smol_stack: &mut SmolStack, address: CIpv4Address) {
+    smol_stack.add_default_v4_gateway(address);
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_add_default_v6_gateway(tun_smol_stack: &mut TunSmolStack, address: CIpv6Address) {
-    tun_smol_stack.add_default_v6_gateway(address);
+pub extern "C" fn smol_stack_add_default_v6_gateway(smol_stack: &mut SmolStack, address: CIpv6Address) {
+    smol_stack.add_default_v6_gateway(address);
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_finalize<'a, 'b: 'a, 'c: 'a + 'b>(tun_smol_stack: &mut TunSmolStack<'a, 'b, 'c>) -> u8 {
-    tun_smol_stack.finalize()
+pub extern "C" fn smol_stack_finalize<'a, 'b: 'a, 'c: 'a + 'b>(smol_stack: &mut SmolStack<'a, 'b, 'c>) -> u8 {
+    smol_stack.finalize()
 }
