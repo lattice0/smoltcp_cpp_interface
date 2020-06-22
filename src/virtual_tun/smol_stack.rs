@@ -18,8 +18,9 @@ use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
+use std::slice;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 pub enum SocketType {
     RAW_IPV4,
     RAW_IPV6,
@@ -70,7 +71,7 @@ impl SmolSocket {
             panic!("this socket type needs an endpoint to send to");
         }
         let packet = Packet {
-            socket_type: self.socket_type,
+            socket_type: self.socket_type.clone(),
             blob: Blob {
                 data: data,
                 len: len,
@@ -86,7 +87,7 @@ impl SmolSocket {
         //If the last step couldn't send the entire blob,
         //the packet is in `self.current`, so we return it again
         //otherwise we return a fresh packet from the queue
-        match self.current {
+        match self.current.take() {
             Some(packet) => Some(packet),
             None => self.packets.lock().unwrap().pop_front()
         }
@@ -263,24 +264,34 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStack<'a, 'b, 'c> {
         0
     }
 
+    pub fn poll(&mut self) -> u8{
+        let timestamp = Instant::now();
+        match self.interface.as_mut().unwrap().poll(&mut self.sockets, timestamp) {
+            Ok(_) => 0,
+            Err(e) => {
+                //debug!("poll error: {}",e);
+                1
+            }
+        }
+    }
+
+
     pub fn spin(&mut self, socket_handle_key: usize) -> u8{
         let smol_socket = self.smol_sockets.get_mut(&socket_handle_key).unwrap();
         match smol_socket.socket_type {
             SocketType::TCP => {
                 let mut socket = self.sockets.get::<TcpSocket>(smol_socket.socket_handle);
-                let packet: Packet;
-                //TODO: see if I should really unwrap this
-                packet = smol_socket.get_latest_packet().unwrap();
+                let packet = smol_socket.get_latest_packet().unwrap();
+                let packet_as_slice =  unsafe { slice::from_raw_parts(packet.blob.data, packet.blob.len) };
                 //TODO: send correct slice
-                let bytes_sent = socket.send_slice(&[]);
+                let bytes_sent = socket.send_slice(packet_as_slice);
                 match bytes_sent {
                     Ok(b) => {
                         //Sent less than entire packet, so we must put this packet 
                         //in `smol_socket.current` so it's returned the next time
                         //so we can continue sending it
                         if b < packet.blob.len {
-                            smol_socket.current = Some(packet);
-                            //TODO: put packet in smol_socket.current
+                            smol_socket.current = Some(packet);                            
                             0
                         } else {
                             //Sent the entire packet, nothing needs to be done
@@ -293,9 +304,28 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> TunSmolStack<'a, 'b, 'c> {
                 }
             }
             SocketType::UDP => {
+                let mut socket = self.sockets.get::<UdpSocket>(smol_socket.socket_handle);
+                let packet = smol_socket.get_latest_packet().unwrap();
+                let packet_as_slice =  unsafe { slice::from_raw_parts(packet.blob.data, packet.blob.len) };
+                //TODO: send correct slice
+                let bytes_sent = socket.send_slice(packet_as_slice, packet.endpoint.unwrap());
+                match bytes_sent {
+                    Ok(_) => {
+                        0
+                    }
+                    Err(e) => {
+                        1
+                    }
+                }
+            }
+            //TODO
+            SocketType::ICMP => {
                 0
             }
-            SocketType::ICMP => {
+            SocketType::RAW_IPV4 => {
+                0
+            }
+            SocketType::RAW_IPV6 => {
                 0
             }
         }

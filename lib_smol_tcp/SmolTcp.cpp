@@ -34,9 +34,9 @@ int main() {
             {0xfe80, 0, 0, 0, 0, 0, 0, 0x100}
     });
     
-    SocketHandlePtr socketHandle = tunSmolStack.addSocket(SOCKET_TCP);
+    SocketHandleKey socketHandle = tunSmolStack.addSocket(SOCKET_TCP);
     SmolSocket smolSocket;
-    smolSocket.socketHandlePtr = socketHandle;
+    smolSocket.SocketHandleKey = socketHandle;
     size_t handle = smolSockethandleMap.emplace(smolSocket);
 
     uint8_t result = tunSmolStack.finalize();

@@ -6,7 +6,7 @@ use std::ffi::CStr;
 use smoltcp::socket::{SocketHandle, TcpSocket};
 use super::smol_stack::{TunSmolStack, SocketType};
 use smoltcp::time::Instant;
-use smoltcp::wire::{Ipv4Address, Ipv6Address, IpAddress,IpCidr};
+use smoltcp::wire::{Ipv4Address, Ipv6Address, IpAddress, IpCidr, IpEndpoint};
 
 type OnPacketToOutside = unsafe extern "C" fn(data: *mut u8, len: usize, packet_type: u8) -> c_int;
 static mut onPacketToOutside: Option<OnPacketToOutside> = None;
@@ -75,6 +75,36 @@ impl Into<IpAddress> for CIpv6Address {
 }
 
 #[repr(C)]
+pub struct CIpEndpoint {
+    pub is_ipv4: bool,
+    pub ipv4: CIpv4Address,
+    pub ipv6: CIpv6Address,
+    pub port: u16
+}
+
+impl Into<IpEndpoint> for CIpEndpoint {
+    fn into(self) -> IpEndpoint {
+        if self.is_ipv4 {
+            IpEndpoint::new(IpAddress::v4(self.ipv4.address[0], 
+                                          self.ipv4.address[1], 
+                                          self.ipv4.address[2], 
+                                          self.ipv4.address[3]), 
+                                          self.port)
+        } else {
+            IpEndpoint::new(IpAddress::v6(self.ipv6.address[0], 
+                                          self.ipv6.address[1], 
+                                          self.ipv6.address[2], 
+                                          self.ipv6.address[3],
+                                          self.ipv6.address[4],
+                                          self.ipv6.address[5],
+                                          self.ipv6.address[6],
+                                          self.ipv6.address[7]), 
+                                          self.port)
+        }
+    }
+}
+
+#[repr(C)]
 pub struct CIpv4Cidr {
     pub address: CIpv4Address,
     pub prefix: u8
@@ -102,11 +132,11 @@ pub extern "C" fn smol_stack_tun_smol_stack_new<'a, 'b: 'a, 'c: 'a + 'b>(interfa
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_tun_smol_socket_send(tun_smol_stack: &mut TunSmolStack, socket_handle_key: usize, data: *mut u8, len: usize) -> u8 {
+pub extern "C" fn smol_stack_tun_smol_socket_send(tun_smol_stack: &mut TunSmolStack, socket_handle_key: usize, data: *mut u8, len: usize, endpoint: CIpEndpoint) -> u8 {
     let smol_socket = tun_smol_stack.get_smol_socket(socket_handle_key);
     match smol_socket {
         Some(smol_socket_) => {
-            smol_socket_.send(data, len);
+            smol_socket_.send(data, len, Some(Into::<IpEndpoint>::into(endpoint)));
             0
         }
         None => 1
@@ -138,8 +168,13 @@ pub extern "C" fn smol_stack_tcp_connect_ipv6(tun_smol_stack: &mut TunSmolStack,
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_spin(tun_smol_stack: &mut TunSmolStack) {
-    tun_smol_stack.spin()
+pub extern "C" fn smol_stack_poll(tun_smol_stack: &mut TunSmolStack) -> u8 {
+    tun_smol_stack.poll()
+}
+
+#[no_mangle]
+pub extern "C" fn smol_stack_spin(tun_smol_stack: &mut TunSmolStack, socket_handle_key: usize) -> u8 {
+    tun_smol_stack.spin(socket_handle_key)
 }
 
 #[no_mangle]
