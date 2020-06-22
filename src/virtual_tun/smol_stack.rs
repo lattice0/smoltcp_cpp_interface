@@ -89,6 +89,8 @@ impl SmolSocket {
         //otherwise we return a fresh packet from the queue
         match self.current.take() {
             Some(packet) => Some(packet),
+            //TODO: verify assertion below
+            //lock happens very birefly, so the list is not kept locked much time 
             None => self.packets.lock().unwrap().pop_front()
         }
         

@@ -74,24 +74,29 @@ impl Into<IpAddress> for CIpv6Address {
     }
 }
 
+//Keep synced with CIpEndpointType on interface.h
+static CIpEndpoint_NONE: u8 = 0;
+static CIPENDPOINT_IPV4: u8 = 1;
+static CIPENDPOINT_IPV6: u8 = 0;
+
 #[repr(C)]
 pub struct CIpEndpoint {
-    pub is_ipv4: bool,
+    pub endpoint_type: u8,
     pub ipv4: CIpv4Address,
     pub ipv6: CIpv6Address,
     pub port: u16
 }
 
-impl Into<IpEndpoint> for CIpEndpoint {
-    fn into(self) -> IpEndpoint {
-        if self.is_ipv4 {
-            IpEndpoint::new(IpAddress::v4(self.ipv4.address[0], 
+impl Into<Option<IpEndpoint>> for CIpEndpoint {
+    fn into(self) -> Option<IpEndpoint> {
+        if self.endpoint_type == CIPENDPOINT_IPV4 {
+            Some(IpEndpoint::new(IpAddress::v4(self.ipv4.address[0], 
                                           self.ipv4.address[1], 
                                           self.ipv4.address[2], 
                                           self.ipv4.address[3]), 
-                                          self.port)
-        } else {
-            IpEndpoint::new(IpAddress::v6(self.ipv6.address[0], 
+                                          self.port))
+        } else if self.endpoint_type == CIPENDPOINT_IPV6 {
+            Some(IpEndpoint::new(IpAddress::v6(self.ipv6.address[0], 
                                           self.ipv6.address[1], 
                                           self.ipv6.address[2], 
                                           self.ipv6.address[3],
@@ -99,7 +104,9 @@ impl Into<IpEndpoint> for CIpEndpoint {
                                           self.ipv6.address[5],
                                           self.ipv6.address[6],
                                           self.ipv6.address[7]), 
-                                          self.port)
+                                          self.port))
+        } else {
+            None
         }
     }
 }
@@ -136,7 +143,7 @@ pub extern "C" fn smol_stack_tun_smol_socket_send(tun_smol_stack: &mut TunSmolSt
     let smol_socket = tun_smol_stack.get_smol_socket(socket_handle_key);
     match smol_socket {
         Some(smol_socket_) => {
-            smol_socket_.send(data, len, Some(Into::<IpEndpoint>::into(endpoint)));
+            smol_socket_.send(data, len, Into::<Option<IpEndpoint>>::into(endpoint));
             0
         }
         None => 1
