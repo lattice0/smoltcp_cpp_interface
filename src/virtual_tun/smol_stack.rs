@@ -37,7 +37,7 @@ pub struct Blob {
 
 pub struct Packet<'a> {
     socket_type: SocketType,
-    slice: &'a[u8],
+    slice: &'a [u8],
     endpoint: Option<IpEndpoint>,
 }
 
@@ -79,10 +79,6 @@ impl<'a> SmolSocket<'a> {
             panic!("this socket type needs an endpoint to send to");
         }
         //println!("gonna send this slice2: {}", slice);
-        use std::str;
-        if let Ok(s) = str::from_utf8(slice) {
-            println!("{}", s);
-        }
         let packet = Packet {
             socket_type: self.socket_type.clone(),
             slice: slice,
@@ -97,18 +93,13 @@ impl<'a> SmolSocket<'a> {
         //the packet is in `self.current`, so we return it again
         //otherwise we return a fresh packet from the queue
         match self.current.take() {
-            Some(packet) => {
-                
-                Some(packet)
-            }
+            Some(packet) => Some(packet),
             //TODO: verify assertion below
             //lock happens very birefly, so the list is not kept locked much time
             None => {
-                
-                let packet = self.packets.lock().unwrap().pop_front().unwrap();
-                
-                Some(packet)
-            },
+                let packet = self.packets.lock().unwrap().pop_front();
+                packet
+            }
         }
     }
 }
@@ -323,48 +314,54 @@ where
         match smol_socket.socket_type {
             SocketType::TCP => {
                 let mut socket = self.sockets.get::<TcpSocket>(smol_socket.socket_handle);
-                let packet = smol_socket.get_latest_packet();
-                /*
-                let bytes_sent = socket.send_slice(packet.unwrap().slice);
-                match bytes_sent {
-                    Ok(_) => 0,
-                    Err(e) => 1,
-                }
-                */
-                
-                //let packet = Some(Packet{endpoint: None, slice: &[], socket_type: SocketType::ICMP});
-                match packet {
-                    Some(packet) => {
-                        println!("some packet");
-                        
-                        let bytes_sent = socket.send_slice(packet.slice);
-                        match bytes_sent {
-                            Ok(b) => {
-                                println!("sent {} bytes", b);
-                                //Sent less than entire packet, so we must put this packet
-                                //in `smol_socket.current` so it's returned the next time
-                                //so we can continue sending it
-                                if b < packet.slice.len() {
+                if (socket.may_recv()) {
+                    let packet = smol_socket.get_latest_packet();
+                    /*
+                    let bytes_sent = socket.send_slice(packet.unwrap().slice);
+                    match bytes_sent {
+                        Ok(_) => 0,
+                        Err(e) => 1,
+                    }
+                    */
+
+                    //let packet = Some(Packet{endpoint: None, slice: &[], socket_type: SocketType::ICMP});
+                    match packet {
+                        Some(packet) => {
+                            println!("some packet");
+                            use std::str;
+                            if let Ok(s) = str::from_utf8(packet.slice) {
+                                println!("GONNA SEND: {}", s);
+                            }
+                            let bytes_sent = socket.send_slice(packet.slice);
+                            match bytes_sent {
+                                Ok(b) => {
+                                    println!("sent {} bytes", b);
+                                    //Sent less than entire packet, so we must put this packet
+                                    //in `smol_socket.current` so it's returned the next time
+                                    //so we can continue sending it
+                                    if b < packet.slice.len() {
+                                        //smol_socket.current = Some(packet);
+                                        0
+                                    } else {
+                                        //Sent the entire packet, nothing needs to be done
+                                        0
+                                    }
+                                }
+                                Err(e) => {
+                                    println!("bytes not sent, ERROR {}, putting packet back", e);
                                     //smol_socket.current = Some(packet);
-                                    0
-                                } else {
-                                    //Sent the entire packet, nothing needs to be done
-                                    0
+                                    1
                                 }
                             }
-                            Err(e) => {
-                                println!("bytes not sent, ERROR {}, putting packet back", e);
-                                //smol_socket.current = Some(packet);
-                                1
-                            }
+                        }
+                        None => {
+                            //println!("NO packet");
+                            1
                         }
                     }
-                    None => {
-                        //println!("NO packet");
-                        1
-                    }
+                } else {
+                    1
                 }
-                
             }
             SocketType::UDP => {
                 let mut socket = self.sockets.get::<UdpSocket>(smol_socket.socket_handle);
@@ -381,31 +378,5 @@ where
             SocketType::RAW_IPV4 => 0,
             SocketType::RAW_IPV6 => 0,
         }
-        /*
-        let timestamp = Instant::now();
-        match self.interface.as_mut().unwrap().poll(&mut self.sockets, timestamp)
-        {
-            Ok(_) => {
-                sockets.iter_mut().filter_map(TcpSocket::downcast);
-                let socket_interface: Box<dyn SocketInterface>;
-                for socket in self.sockets.iter_mut() {
-                    socket_interface = Box::new(socket.socket.unwrap());
-                    if socket.may_send() {
-                        socket.send_slice(b"\r\n").expect("cannot send");
-                    }
-                    if socket.can_recv() => {
-                        socket.recv(|data| {
-                            println!("{}", str::from_utf8(data).unwrap_or("(invalid utf8)"));
-                            (data.len(), ())
-                        }).unwrap();
-                        State::Response
-                    }
-                }
-            }
-            Err(e) => {
-                //debug!("poll error: {}",e);
-            }
-        }
-        */
     }
 }

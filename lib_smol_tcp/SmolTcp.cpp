@@ -1,9 +1,11 @@
 #include <iostream>
 #include "interface.h"
 #include <map>
-
+#include <thread>
+#include <chrono>
 int main()
 {
+    std::string httpRequestData("GET /index.html HTTP/1.1\r\nHost: www.google.com\r\nConnection: Keep-Alive\r\n\r\n");
     HandleMap<SmolSocket> smolSockethandleMap;
     TunSmolStack tunSmolStack("tun1", StackType::Tun);
 
@@ -64,7 +66,8 @@ int main()
             }
             if (state == State::Request)
             {
-                std::string httpRequestData("GET /index.html HTTP/1.1\r\nHost: www.google.com\r\nConnection: Keep-Alive\r\n\r\n");
+                std::this_thread::sleep_for(std::chrono::milliseconds(10000));
+                //std::string httpRequestData("GET /index.html HTTP/1.1\r\nHost: www.google.com\r\nConnection: Keep-Alive\r\n\r\n");
                 std::cout << "HTTP: " << httpRequestData << std::endl;
                 const uint8_t* httpRequestDataBuffer = reinterpret_cast<const uint8_t*>(httpRequestData.c_str());
                 tunSmolStack.send(socketHandle, httpRequestDataBuffer, httpRequestData.size(), endpointNone);
@@ -75,6 +78,8 @@ int main()
 
             }
             tunSmolStack.spin(smolSocketHandle);
+            //tunSmolStack.poll();
+            //std::this_thread::sleep_for(std::chrono::milliseconds(10000));
         }
     }
     else

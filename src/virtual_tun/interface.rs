@@ -9,8 +9,8 @@ use smoltcp::time::Instant;
 use smoltcp::wire::{IpAddress, IpCidr, IpEndpoint, Ipv4Address, Ipv6Address};
 use std::ffi::CStr;
 use std::os::raw::{c_char, c_int};
-use std::str::{self};
 use std::slice;
+use std::str::{self};
 type OnPacketToOutside = unsafe extern "C" fn(data: *mut u8, len: usize, packet_type: u8) -> c_int;
 static mut onPacketToOutside: Option<OnPacketToOutside> = None;
 
@@ -72,7 +72,7 @@ impl<'a, 'b: 'a, 'c: 'a + 'b, 'e> SmolStackType<'a, 'b, 'c, 'e> {
         }
     }
 
-    pub fn get_smol_socket(&mut self, socket_handle_key: usize) -> Option<&mut SmolSocket> {
+    pub fn get_smol_socket(&mut self, socket_handle_key: usize) -> Option<&mut SmolSocket<'e>> {
         match self {
             &mut SmolStackType::VirtualTun(ref mut smol_stack) => {
                 smol_stack.get_smol_socket(socket_handle_key)
@@ -320,6 +320,11 @@ pub extern "C" fn smol_stack_smol_socket_send(
 
     match smol_socket {
         Some(smol_socket_) => {
+            println!("some packet");
+            use std::str;
+            if let Ok(s) = str::from_utf8(packet_as_slice) {
+                println!("GONNA queue slice: {}", s);
+            }
             smol_socket_.send(packet_as_slice, Into::<Option<IpEndpoint>>::into(endpoint));
             0
         }
