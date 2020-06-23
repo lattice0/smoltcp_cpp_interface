@@ -98,7 +98,9 @@ impl SmolSocket {
 }
 
 pub struct SmolStack<'a, 'b: 'a, 'c: 'a + 'b, DeviceT>
-    where DeviceT: for<'d> Device<'d>  {
+where
+    DeviceT: for<'d> Device<'d>,
+{
     pub sockets: SocketSet<'a, 'b, 'c>,
     current_key: usize,
     smol_sockets: HashMap<usize, SmolSocket>,
@@ -109,8 +111,10 @@ pub struct SmolStack<'a, 'b: 'a, 'c: 'a + 'b, DeviceT>
     pub interface: Option<Interface<'a, 'b, 'c, DeviceT>>,
 }
 
-impl<'a, 'b: 'a, 'c: 'a + 'b, DeviceT> SmolStack<'a, 'b, 'c, DeviceT> 
-    where DeviceT: for<'d> Device<'d> {
+impl<'a, 'b: 'a, 'c: 'a + 'b, DeviceT> SmolStack<'a, 'b, 'c, DeviceT>
+where
+    DeviceT: for<'d> Device<'d>,
+{
     pub fn new(interface_name: String, device: DeviceT) -> SmolStack<'a, 'b, 'c, DeviceT> {
         let socket_set = SocketSet::new(vec![]);
         //let device = TunDevice::new(interface_name.as_str()).unwrap();
@@ -191,6 +195,10 @@ impl<'a, 'b: 'a, 'c: 'a + 'b, DeviceT> SmolStack<'a, 'b, 'c, DeviceT>
         src_port: u16,
         dst_port: u16,
     ) -> u8 {
+        println!(
+            "gonna get smol socket with handle key {}",
+            socket_handle_key
+        );
         let smol_socket_ = self.smol_sockets.get(&socket_handle_key);
         match smol_socket_ {
             Some(smol_socket) => {
@@ -198,11 +206,20 @@ impl<'a, 'b: 'a, 'c: 'a + 'b, DeviceT> SmolStack<'a, 'b, 'c, DeviceT>
                 let mut socket = self.sockets.get::<TcpSocket>(socket_handle);
                 let r = socket.connect((Into::<Ipv4Address>::into(address), dst_port), src_port);
                 match r {
-                    Ok(_) => 0,
-                    _ => 2,
+                    Ok(_) => {
+                        println!("connection ok");
+                        0
+                    }
+                    _ => {
+                        println!("connection error");
+                        2
+                    }
                 }
             }
-            None => 1,
+            None => {
+                println!("NO smol socket");
+                1
+            }
         }
     }
 
@@ -286,18 +303,20 @@ impl<'a, 'b: 'a, 'c: 'a + 'b, DeviceT> SmolStack<'a, 'b, 'c, DeviceT>
 
     pub fn spin(&mut self, socket_handle_key: usize) -> u8 {
         let smol_socket = self.smol_sockets.get_mut(&socket_handle_key).unwrap();
+        //println!("spin");
         match smol_socket.socket_type {
             SocketType::TCP => {
                 let mut socket = self.sockets.get::<TcpSocket>(smol_socket.socket_handle);
                 let packet = smol_socket.get_latest_packet();
                 match packet {
                     Some(packet) => {
+                        println!("some packet");
                         let packet_as_slice =
                             unsafe { slice::from_raw_parts(packet.blob.data, packet.blob.len) };
-                        //TODO: send correct slice
                         let bytes_sent = socket.send_slice(packet_as_slice);
                         match bytes_sent {
                             Ok(b) => {
+                                println!("sent {} bytes", b);
                                 //Sent less than entire packet, so we must put this packet
                                 //in `smol_socket.current` so it's returned the next time
                                 //so we can continue sending it
@@ -309,10 +328,17 @@ impl<'a, 'b: 'a, 'c: 'a + 'b, DeviceT> SmolStack<'a, 'b, 'c, DeviceT>
                                     0
                                 }
                             }
-                            Err(e) => 1,
+                            Err(e) => {
+                                println!("bytes not sent, ERROR {}, putting packet back", e);
+                                smol_socket.current = Some(packet);
+                                1
+                            }
                         }
                     }
-                    None => 1
+                    None => {
+                        //println!("NO packet");
+                        1
+                    }
                 }
             }
             SocketType::UDP => {

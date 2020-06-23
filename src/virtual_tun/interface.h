@@ -69,9 +69,10 @@ struct CIpv6Cidr
     uint64_t prefix;
 };
 
-enum CIpEndpointType {
+enum CIpEndpointType
+{
     None = 0,
-    Ipv4 = 1, 
+    Ipv4 = 1,
     Ipv6 = 2
 };
 
@@ -93,19 +94,26 @@ extern "C" void cppDeletePointer(uint8_t *data)
     delete data;
 }
 
-extern "C" SmolStackPtr smol_stack_smol_stack_new_virtual(const char *interfaceName);
+extern "C" SmolStackPtr smol_stack_smol_stack_new_virtual_tun(const char *interfaceName);
 extern "C" SmolStackPtr smol_stack_smol_stack_new_tun(const char *interfaceName);
 extern "C" size_t smol_stack_add_socket(SmolStackPtr, uint8_t);
 extern "C" void smol_stack_poll(SmolStackPtr);
 extern "C" void smol_stack_spin(SmolStackPtr, size_t handle);
-extern "C" void smol_stack_tcp_connect_ipv4(SmolStackPtr, CIpv4Address, uint8_t, uint8_t);
-extern "C" void smol_stack_tcp_connect_ipv6(SmolStackPtr, CIpv6Address, uint8_t, uint8_t);
-extern "C" uint8_t smol_stack_smol_socket_send(SmolStackPtr, size_t handle, const uint8_t* data, size_t len, CIpEndpoint endpoint);
+extern "C" void smol_stack_tcp_connect_ipv4(SmolStackPtr, size_t handle, CIpv4Address, uint8_t, uint8_t);
+extern "C" void smol_stack_tcp_connect_ipv6(SmolStackPtr, size_t handle, CIpv6Address, uint8_t, uint8_t);
+extern "C" uint8_t smol_stack_smol_socket_send(SmolStackPtr, size_t handle, const uint8_t *data, size_t len, CIpEndpoint endpoint);
 extern "C" void smol_stack_add_ipv4_address(SmolStackPtr, CIpv4Cidr);
 extern "C" void smol_stack_add_ipv6_address(SmolStackPtr, CIpv6Cidr);
 extern "C" void smol_stack_add_default_v4_gateway(SmolStackPtr, CIpv4Address);
 extern "C" void smol_stack_add_default_v6_gateway(SmolStackPtr, CIpv6Address);
 extern "C" uint8_t smol_stack_finalize(SmolStackPtr);
+
+enum StackType
+{
+    VirtualTun,
+    Tun,
+    Tap
+};
 
 class SmolSocket
 {
@@ -120,13 +128,19 @@ private:
     SmolStackPtr smolStackPtr;
     std::random_device rd;
     std::mt19937 mt{rd()};
-    std::uniform_int_distribution<int> random{49152, 49152+16383};
-    
+    std::uniform_int_distribution<int> random{49152, 49152 + 16383};
+
 public:
-    
-    TunSmolStack(std::string interfaceName)
+    TunSmolStack(std::string interfaceName, StackType stackType)
     {
-        smolStackPtr = smol_stack_smol_stack_new_virtual(interfaceName.c_str());
+        if (stackType == StackType::VirtualTun) {
+            smolStackPtr = smol_stack_smol_stack_new_virtual_tun(interfaceName.c_str());
+        } else if (stackType == StackType::Tun) {
+            std::cout << "creating TUN device" << std::endl;
+            smolStackPtr = smol_stack_smol_stack_new_tun(interfaceName.c_str());
+        } else if (stackType == StackType::Tap) {
+            //throw error
+        }
     }
 
     size_t addSocket(uint8_t socketType)
@@ -144,23 +158,24 @@ public:
         smol_stack_spin(smolStackPtr, handle);
     }
 
-    void send(size_t handle, const uint8_t* data, size_t len, CIpEndpoint endpoint)
+    void send(size_t handle, const uint8_t *data, size_t len, CIpEndpoint endpoint)
     {
         smol_stack_smol_socket_send(smolStackPtr, handle, data, len, endpoint);
     }
 
-    void connectIpv4(CIpv4Address address, uint8_t src_port, uint8_t dst_port)
+    void connectIpv4(size_t socket_handle, CIpv4Address address, uint8_t src_port, uint8_t dst_port)
     {
-        smol_stack_tcp_connect_ipv4(smolStackPtr, address, src_port, dst_port);
+        smol_stack_tcp_connect_ipv4(smolStackPtr, socket_handle,  address, src_port, dst_port);
     }
 
-    uint16_t randomOutputPort() {
+    uint16_t randomOutputPort()
+    {
         return random(mt);
     }
 
-    void connectIpv6(CIpv6Address address, uint8_t src_port, uint8_t dst_port)
+    void connectIpv6(size_t socket_handle, CIpv6Address address, uint8_t src_port, uint8_t dst_port)
     {
-        smol_stack_tcp_connect_ipv6(smolStackPtr, address, src_port, dst_port);
+        smol_stack_tcp_connect_ipv6(smolStackPtr, socket_handle, address, src_port, dst_port);
     }
 
     void addIpv4Address(CIpv4Cidr cidr)
@@ -188,7 +203,8 @@ public:
         return smol_stack_finalize(smolStackPtr);
     }
 
-    ~TunSmolStack() {
+    ~TunSmolStack()
+    {
         //smol_stack_add_destroy()
     }
 };

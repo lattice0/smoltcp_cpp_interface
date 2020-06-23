@@ -5,7 +5,7 @@
 int main()
 {
     HandleMap<SmolSocket> smolSockethandleMap;
-    TunSmolStack tunSmolStack("tun0");
+    TunSmolStack tunSmolStack("tun1", StackType::Tun);
 
     tunSmolStack.addIpv4Address(CIpv4Cidr{
         CIpv4Address{
@@ -30,7 +30,9 @@ int main()
     SocketHandleKey socketHandle = tunSmolStack.addSocket(SOCKET_TCP);
     SmolSocket smolSocket;
     smolSocket.SocketHandleKey = socketHandle;
+    std::cout << "smol socket handle key " << socketHandle << std::endl;
     size_t smolSocketHandle = smolSockethandleMap.emplace(smolSocket);
+    std::cout << "smolSocketHandle " << socketHandle << std::endl;
     uint8_t result = tunSmolStack.finalize();
     CIpEndpoint endpointNone{
         CIpEndpointType::None,
@@ -55,7 +57,7 @@ int main()
             {
                 std::cout << "connecting..." << std::endl;
                 uint16_t randomOutputPort = tunSmolStack.randomOutputPort();
-                tunSmolStack.connectIpv4(CIpv4Address{
+                tunSmolStack.connectIpv4(socketHandle, CIpv4Address{
                                              {172,217,28,238}},
                                          randomOutputPort, 80);
                 state = State::Request;
@@ -68,7 +70,7 @@ int main()
                     \r\n");
                 std::cout << "HTTP: " << httpRequestData << std::endl;
                 const uint8_t* httpRequestDataBuffer = reinterpret_cast<const uint8_t*>(httpRequestData.c_str());
-                tunSmolStack.send(smolSocketHandle, httpRequestDataBuffer, httpRequestData.size(), endpointNone);
+                tunSmolStack.send(socketHandle, httpRequestDataBuffer, httpRequestData.size(), endpointNone);
                 state = State::Response;
             }
             if (state == State::Response)
