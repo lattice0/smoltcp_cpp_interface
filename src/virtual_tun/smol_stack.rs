@@ -97,24 +97,26 @@ impl SmolSocket {
     }
 }
 
-pub struct SmolStack<'a, 'b: 'a, 'c: 'a + 'b> {
+pub struct SmolStack<'a, 'b: 'a, 'c: 'a + 'b, DeviceT>
+    where DeviceT: for<'d> Device<'d>  {
     pub sockets: SocketSet<'a, 'b, 'c>,
     current_key: usize,
     smol_sockets: HashMap<usize, SmolSocket>,
-    device: Option<TunDevice>,
+    device: Option<DeviceT>,
     ip_addrs: Option<std::vec::Vec<IpCidr>>,
     default_v4_gw: Option<Ipv4Address>,
     default_v6_gw: Option<Ipv6Address>,
-    pub interface: Option<Interface<'a, 'b, 'c, TunDevice>>,
+    pub interface: Option<Interface<'a, 'b, 'c, DeviceT>>,
 }
 
-impl<'a, 'b: 'a, 'c: 'a + 'b> SmolStack<'a, 'b, 'c> {
-    pub fn new(interface_name: String) -> Box<SmolStack<'a, 'b, 'c>> {
+impl<'a, 'b: 'a, 'c: 'a + 'b, DeviceT> SmolStack<'a, 'b, 'c, DeviceT> 
+    where DeviceT: for<'d> Device<'d> {
+    pub fn new(interface_name: String, device: DeviceT) -> SmolStack<'a, 'b, 'c, DeviceT> {
         let socket_set = SocketSet::new(vec![]);
-        let device = TunDevice::new(interface_name.as_str()).unwrap();
+        //let device = TunDevice::new(interface_name.as_str()).unwrap();
         let ip_addrs = std::vec::Vec::new();
 
-        Box::new(SmolStack {
+        SmolStack {
             sockets: socket_set,
             current_key: 0,
             smol_sockets: HashMap::new(),
@@ -123,7 +125,7 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> SmolStack<'a, 'b, 'c> {
             default_v4_gw: None,
             default_v6_gw: None,
             interface: None,
-        })
+        }
     }
 
     pub fn new_socket_handle_key(&mut self) -> usize {
