@@ -94,6 +94,7 @@ extern "C" void cppDeletePointer(uint8_t *data)
 }
 
 extern "C" SmolStackPtr smol_stack_smol_stack_new_virtual(const char *interfaceName);
+extern "C" SmolStackPtr smol_stack_smol_stack_new_tun(const char *interfaceName);
 extern "C" size_t smol_stack_add_socket(SmolStackPtr, uint8_t);
 extern "C" void smol_stack_poll(SmolStackPtr);
 extern "C" void smol_stack_spin(SmolStackPtr, size_t handle);
@@ -185,6 +186,10 @@ public:
     uint8_t finalize()
     {
         return smol_stack_finalize(smolStackPtr);
+    }
+
+    ~TunSmolStack() {
+        //smol_stack_add_destroy()
     }
 };
 

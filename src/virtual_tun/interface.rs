@@ -2,9 +2,10 @@ extern crate rand;
 
 use super::smol_stack::SmolSocket;
 use super::smol_stack::{SmolStack, SocketType};
-use super::virtual_tun::VirtualTunInterface as TunDevice;
+use super::virtual_tun::VirtualTunInterface as VirtualTunDevice;
 use smoltcp::socket::{SocketHandle, TcpSocket};
 use smoltcp::time::Instant;
+use smoltcp::phy::TunInterface as TunDevice;
 use smoltcp::wire::{IpAddress, IpCidr, IpEndpoint, Ipv4Address, Ipv6Address};
 use std::ffi::CStr;
 use std::os::raw::{c_char, c_int};
@@ -14,28 +15,38 @@ static mut onPacketToOutside: Option<OnPacketToOutside> = None;
 
 pub enum SmolSocketType {
     Virtual,
+    Tun
 }
 
 pub enum SmolStackType<'a, 'b: 'a, 'c: 'a + 'b> {
-    Virtual(SmolStack<'a, 'b, 'c, TunDevice>),
+    Virtual(SmolStack<'a, 'b, 'c, VirtualTunDevice>),
+    Tun(SmolStack<'a, 'b, 'c, TunDevice>)
 }
 
 impl<'a, 'b: 'a, 'c: 'a + 'b> SmolStackType<'a, 'b, 'c> {
     pub fn new_virtual(interface_name: String) -> Box<SmolStackType<'a, 'b, 'c>> {
-        let device = TunDevice::new(interface_name.as_str()).unwrap();
+        let device = VirtualTunDevice::new(interface_name.as_str()).unwrap();
         let smol_stack = SmolStack::new(interface_name, device);
         Box::new(SmolStackType::Virtual(smol_stack))
+    }
+
+    pub fn new_tun(interface_name: String) -> Box<SmolStackType<'a, 'b, 'c>> {
+        let device = TunDevice::new(interface_name.as_str()).unwrap();
+        let smol_stack = SmolStack::new(interface_name, device);
+        Box::new(SmolStackType::Tun(smol_stack))
     }
 
     pub fn new_socket_handle_key(&mut self) -> usize {
         match self {
             &mut SmolStackType::Virtual(ref mut smol_stack) => smol_stack.new_socket_handle_key(),
+            &mut SmolStackType::Tun(ref mut smol_stack) => smol_stack.new_socket_handle_key(),
         }
     }
 
     pub fn add_socket(&mut self, socket_type: SocketType) -> usize {
         match self {
             &mut SmolStackType::Virtual(ref mut smol_stack) => smol_stack.add_socket(socket_type),
+            &mut SmolStackType::Tun(ref mut smol_stack) => smol_stack.add_socket(socket_type),
         }
     }
 
@@ -50,12 +61,18 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> SmolStackType<'a, 'b, 'c> {
             &mut SmolStackType::Virtual(ref mut smol_stack) => {
                 smol_stack.tcp_connect_ipv4(socket_handle_key, address, src_port, dst_port)
             }
+            &mut SmolStackType::Tun(ref mut smol_stack) => {
+                smol_stack.tcp_connect_ipv4(socket_handle_key, address, src_port, dst_port)
+            }
         }
     }
 
     pub fn get_smol_socket(&mut self, socket_handle_key: usize) -> Option<&mut SmolSocket> {
         match self {
             &mut SmolStackType::Virtual(ref mut smol_stack) => {
+                smol_stack.get_smol_socket(socket_handle_key)
+            }
+            &mut SmolStackType::Tun(ref mut smol_stack) => {
                 smol_stack.get_smol_socket(socket_handle_key)
             }
         }
@@ -72,24 +89,32 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> SmolStackType<'a, 'b, 'c> {
             &mut SmolStackType::Virtual(ref mut smol_stack) => {
                 smol_stack.tcp_connect_ipv6(socket_handle_key, address, src_port, dst_port)
             }
+            &mut SmolStackType::Tun(ref mut smol_stack) => {
+                smol_stack.tcp_connect_ipv6(socket_handle_key, address, src_port, dst_port)
+            }
         }
     }
 
     pub fn add_ipv4_address(&mut self, cidr: CIpv4Cidr) {
         match self {
             &mut SmolStackType::Virtual(ref mut smol_stack) => smol_stack.add_ipv4_address(cidr),
+            &mut SmolStackType::Tun(ref mut smol_stack) => smol_stack.add_ipv4_address(cidr),
         }
     }
 
     pub fn add_ipv6_address(&mut self, cidr: CIpv6Cidr) {
         match self {
             &mut SmolStackType::Virtual(ref mut smol_stack) => smol_stack.add_ipv6_address(cidr),
+            &mut SmolStackType::Tun(ref mut smol_stack) => smol_stack.add_ipv6_address(cidr),
         }
     }
 
     pub fn add_default_v4_gateway(&mut self, address: CIpv4Address) {
         match self {
             &mut SmolStackType::Virtual(ref mut smol_stack) => {
+                smol_stack.add_default_v4_gateway(address)
+            }
+            &mut SmolStackType::Tun(ref mut smol_stack) => {
                 smol_stack.add_default_v4_gateway(address)
             }
         }
@@ -100,24 +125,33 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> SmolStackType<'a, 'b, 'c> {
             &mut SmolStackType::Virtual(ref mut smol_stack) => {
                 smol_stack.add_default_v6_gateway(address)
             }
+            &mut SmolStackType::Tun(ref mut smol_stack) => {
+                smol_stack.add_default_v6_gateway(address)
+            }
         }
     }
 
     pub fn finalize(&mut self) -> u8 {
         match self {
             &mut SmolStackType::Virtual(ref mut smol_stack) => smol_stack.finalize(),
+            &mut SmolStackType::Tun(ref mut smol_stack) => smol_stack.finalize(),
+
         }
+        
     }
 
     pub fn poll(&mut self) -> u8 {
         match self {
             &mut SmolStackType::Virtual(ref mut smol_stack) => smol_stack.poll(),
+            &mut SmolStackType::Tun(ref mut smol_stack) => smol_stack.poll(),
+
         }
     }
 
     pub fn spin(&mut self, socket_handle_key: usize) -> u8 {
         match self {
             &mut SmolStackType::Virtual(ref mut smol_stack) => smol_stack.spin(socket_handle_key),
+            &mut SmolStackType::Tun(ref mut smol_stack) => smol_stack.spin(socket_handle_key),
         }
     }
 }
@@ -257,6 +291,16 @@ pub extern "C" fn smol_stack_smol_stack_new_virtual<'a, 'b: 'a, 'c: 'a + 'b>(
     let interface_name_slice: &str = interface_name_c_str.to_str().unwrap();
     let s: String = interface_name_slice.to_owned();
     SmolStackType::new_virtual(s)
+}
+
+#[no_mangle]
+pub extern "C" fn smol_stack_smol_stack_new_tun<'a, 'b: 'a, 'c: 'a + 'b>(
+    interface_name: *const c_char,
+) -> Box<SmolStackType<'a, 'b, 'c>> {
+    let interface_name_c_str: &CStr = unsafe { CStr::from_ptr(interface_name) };
+    let interface_name_slice: &str = interface_name_c_str.to_str().unwrap();
+    let s: String = interface_name_slice.to_owned();
+    SmolStackType::new_tun(s)
 }
 
 #[no_mangle]
