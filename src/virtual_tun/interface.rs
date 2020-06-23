@@ -3,24 +3,25 @@ extern crate rand;
 use super::smol_stack::SmolSocket;
 use super::smol_stack::{SmolStack, SocketType};
 use super::virtual_tun::VirtualTunInterface as VirtualTunDevice;
+use smoltcp::phy::TunInterface as TunDevice;
 use smoltcp::socket::{SocketHandle, TcpSocket};
 use smoltcp::time::Instant;
-use smoltcp::phy::TunInterface as TunDevice;
 use smoltcp::wire::{IpAddress, IpCidr, IpEndpoint, Ipv4Address, Ipv6Address};
 use std::ffi::CStr;
 use std::os::raw::{c_char, c_int};
 use std::str::{self};
+use std::slice;
 type OnPacketToOutside = unsafe extern "C" fn(data: *mut u8, len: usize, packet_type: u8) -> c_int;
 static mut onPacketToOutside: Option<OnPacketToOutside> = None;
 
 pub enum SmolSocketType {
     VirtualTun,
-    Tun
+    Tun,
 }
 
 pub enum SmolStackType<'a, 'b: 'a, 'c: 'a + 'b> {
     VirtualTun(SmolStack<'a, 'b, 'c, VirtualTunDevice>),
-    Tun(SmolStack<'a, 'b, 'c, TunDevice>)
+    Tun(SmolStack<'a, 'b, 'c, TunDevice>),
 }
 
 impl<'a, 'b: 'a, 'c: 'a + 'b> SmolStackType<'a, 'b, 'c> {
@@ -38,14 +39,18 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> SmolStackType<'a, 'b, 'c> {
 
     pub fn new_socket_handle_key(&mut self) -> usize {
         match self {
-            &mut SmolStackType::VirtualTun(ref mut smol_stack) => smol_stack.new_socket_handle_key(),
+            &mut SmolStackType::VirtualTun(ref mut smol_stack) => {
+                smol_stack.new_socket_handle_key()
+            }
             &mut SmolStackType::Tun(ref mut smol_stack) => smol_stack.new_socket_handle_key(),
         }
     }
 
     pub fn add_socket(&mut self, socket_type: SocketType) -> usize {
         match self {
-            &mut SmolStackType::VirtualTun(ref mut smol_stack) => smol_stack.add_socket(socket_type),
+            &mut SmolStackType::VirtualTun(ref mut smol_stack) => {
+                smol_stack.add_socket(socket_type)
+            }
             &mut SmolStackType::Tun(ref mut smol_stack) => smol_stack.add_socket(socket_type),
         }
     }
@@ -135,22 +140,21 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> SmolStackType<'a, 'b, 'c> {
         match self {
             &mut SmolStackType::VirtualTun(ref mut smol_stack) => smol_stack.finalize(),
             &mut SmolStackType::Tun(ref mut smol_stack) => smol_stack.finalize(),
-
         }
-        
     }
 
     pub fn poll(&mut self) -> u8 {
         match self {
             &mut SmolStackType::VirtualTun(ref mut smol_stack) => smol_stack.poll(),
             &mut SmolStackType::Tun(ref mut smol_stack) => smol_stack.poll(),
-
         }
     }
 
     pub fn spin(&mut self, socket_handle_key: usize) -> u8 {
         match self {
-            &mut SmolStackType::VirtualTun(ref mut smol_stack) => smol_stack.spin(socket_handle_key),
+            &mut SmolStackType::VirtualTun(ref mut smol_stack) => {
+                smol_stack.spin(socket_handle_key)
+            }
             &mut SmolStackType::Tun(ref mut smol_stack) => smol_stack.spin(socket_handle_key),
         }
     }
@@ -312,9 +316,11 @@ pub extern "C" fn smol_stack_smol_socket_send(
     endpoint: CIpEndpoint,
 ) -> u8 {
     let smol_socket = smol_stack.get_smol_socket(socket_handle_key);
+    let packet_as_slice = unsafe { slice::from_raw_parts(data, len) };
+
     match smol_socket {
         Some(smol_socket_) => {
-            smol_socket_.send(data, len, Into::<Option<IpEndpoint>>::into(endpoint));
+            smol_socket_.send(packet_as_slice, Into::<Option<IpEndpoint>>::into(endpoint));
             0
         }
         None => 1,

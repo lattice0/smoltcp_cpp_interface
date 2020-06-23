@@ -35,9 +35,9 @@ pub struct Blob {
     start: usize,
 }
 
-pub struct Packet {
+pub struct Packet<'a> {
     socket_type: SocketType,
-    blob: Blob,
+    slice: &'a[u8],
     endpoint: Option<IpEndpoint>,
 }
 
@@ -47,16 +47,16 @@ impl Drop for Blob {
     }
 }
 
-pub struct SmolSocket {
+pub struct SmolSocket<'a> {
     pub socket_type: SocketType,
     pub socket_handle: SocketHandle,
-    pub packets: Arc<Mutex<VecDeque<Packet>>>,
+    pub packets: Arc<Mutex<VecDeque<Packet<'a>>>>,
     //If we couldn't send entire packet at once, hold it here for next send
-    current: Option<Packet>,
+    current: Option<Packet<'a>>,
 }
 
-impl SmolSocket {
-    pub fn new(socket_handle: SocketHandle, socket_type: SocketType) -> SmolSocket {
+impl<'a> SmolSocket<'a> {
+    pub fn new(socket_handle: SocketHandle, socket_type: SocketType) -> SmolSocket<'a> {
         SmolSocket {
             socket_type: socket_type,
             socket_handle: socket_handle,
@@ -65,19 +65,20 @@ impl SmolSocket {
         }
     }
 
-    pub fn send(&mut self, data: *mut u8, len: usize, endpoint: Option<IpEndpoint>) -> u8 {
+    pub fn send(&mut self, slice: &'a[u8], endpoint: Option<IpEndpoint>) -> u8 {
         if endpoint.is_none()
             && (self.socket_type == SocketType::UDP || self.socket_type == SocketType::ICMP)
         {
             panic!("this socket type needs an endpoint to send to");
         }
+        //println!("gonna send this slice2: {}", slice);
+        use std::str;
+        if let Ok(s) = str::from_utf8(slice) {
+            println!("{}", s);
+        }
         let packet = Packet {
             socket_type: self.socket_type.clone(),
-            blob: Blob {
-                data: data,
-                len: len,
-                start: 0,
-            },
+            slice: slice,
             endpoint: endpoint,
         };
         self.packets.lock().unwrap().push_back(packet);
@@ -89,10 +90,18 @@ impl SmolSocket {
         //the packet is in `self.current`, so we return it again
         //otherwise we return a fresh packet from the queue
         match self.current.take() {
-            Some(packet) => Some(packet),
+            Some(packet) => {
+                
+                Some(packet)
+            }
             //TODO: verify assertion below
             //lock happens very birefly, so the list is not kept locked much time
-            None => self.packets.lock().unwrap().pop_front(),
+            None => {
+                
+                let packet = self.packets.lock().unwrap().pop_front().unwrap();
+                
+                Some(packet)
+            },
         }
     }
 }
@@ -183,7 +192,7 @@ where
         }
     }
 
-    pub fn get_smol_socket(&mut self, socket_handle_key: usize) -> Option<&mut SmolSocket> {
+    pub fn get_smol_socket(&mut self, socket_handle_key: usize) -> Option<&mut SmolSocket<'a>> {
         let smol_socket = self.smol_sockets.get_mut(&socket_handle_key);
         smol_socket
     }
@@ -311,16 +320,15 @@ where
                 match packet {
                     Some(packet) => {
                         println!("some packet");
-                        let packet_as_slice =
-                            unsafe { slice::from_raw_parts(packet.blob.data, packet.blob.len) };
-                        let bytes_sent = socket.send_slice(packet_as_slice);
+                        
+                        let bytes_sent = socket.send_slice(packet.slice);
                         match bytes_sent {
                             Ok(b) => {
                                 println!("sent {} bytes", b);
                                 //Sent less than entire packet, so we must put this packet
                                 //in `smol_socket.current` so it's returned the next time
                                 //so we can continue sending it
-                                if b < packet.blob.len {
+                                if b < packet.slice.len() {
                                     smol_socket.current = Some(packet);
                                     0
                                 } else {
@@ -344,10 +352,8 @@ where
             SocketType::UDP => {
                 let mut socket = self.sockets.get::<UdpSocket>(smol_socket.socket_handle);
                 let packet = smol_socket.get_latest_packet().unwrap();
-                let packet_as_slice =
-                    unsafe { slice::from_raw_parts(packet.blob.data, packet.blob.len) };
                 //TODO: send correct slice
-                let bytes_sent = socket.send_slice(packet_as_slice, packet.endpoint.unwrap());
+                let bytes_sent = socket.send_slice(packet.slice, packet.endpoint.unwrap());
                 match bytes_sent {
                     Ok(_) => 0,
                     Err(e) => 1,

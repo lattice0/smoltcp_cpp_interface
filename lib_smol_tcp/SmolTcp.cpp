@@ -64,10 +64,7 @@ int main()
             }
             if (state == State::Request)
             {
-                std::string httpRequestData("GET /index.html HTTP/1.1\r\n\
-                    Host: www.google.com\r\n\
-                    Connection: Keep-Alive\r\n\
-                    \r\n");
+                std::string httpRequestData("GET /index.html HTTP/1.1\r\nHost: www.google.com\r\nConnection: Keep-Alive\r\n\r\n");
                 std::cout << "HTTP: " << httpRequestData << std::endl;
                 const uint8_t* httpRequestDataBuffer = reinterpret_cast<const uint8_t*>(httpRequestData.c_str());
                 tunSmolStack.send(socketHandle, httpRequestDataBuffer, httpRequestData.size(), endpointNone);
