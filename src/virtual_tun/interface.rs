@@ -320,11 +320,6 @@ pub extern "C" fn smol_stack_smol_socket_send(
 
     match smol_socket {
         Some(smol_socket_) => {
-            println!("some packet");
-            use std::str;
-            if let Ok(s) = str::from_utf8(packet_as_slice) {
-                println!("GONNA queue slice: {}", s);
-            }
             smol_socket_.send(packet_as_slice, Into::<Option<IpEndpoint>>::into(endpoint));
             0
         }

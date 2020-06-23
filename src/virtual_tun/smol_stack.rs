@@ -314,7 +314,7 @@ where
         match smol_socket.socket_type {
             SocketType::TCP => {
                 let mut socket = self.sockets.get::<TcpSocket>(smol_socket.socket_handle);
-                if (socket.may_recv()) {
+                if socket.may_recv() {
                     let packet = smol_socket.get_latest_packet();
                     /*
                     let bytes_sent = socket.send_slice(packet.unwrap().slice);
@@ -330,7 +330,7 @@ where
                             println!("some packet");
                             use std::str;
                             if let Ok(s) = str::from_utf8(packet.slice) {
-                                println!("GONNA SEND: {}", s);
+                                println!("{}", s);
                             }
                             let bytes_sent = socket.send_slice(packet.slice);
                             match bytes_sent {
