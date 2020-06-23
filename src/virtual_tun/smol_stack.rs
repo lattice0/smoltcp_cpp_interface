@@ -46,6 +46,13 @@ impl Drop for Blob {
         //
     }
 }
+/*
+impl Drop for Packet {
+    fn drop(&mut self) {
+        //
+    }
+}
+*/
 
 pub struct SmolSocket<'a> {
     pub socket_type: SocketType,
@@ -65,7 +72,7 @@ impl<'a> SmolSocket<'a> {
         }
     }
 
-    pub fn send(&mut self, slice: &'a[u8], endpoint: Option<IpEndpoint>) -> u8 {
+    pub fn send(&mut self, slice: &'a [u8], endpoint: Option<IpEndpoint>) -> u8 {
         if endpoint.is_none()
             && (self.socket_type == SocketType::UDP || self.socket_type == SocketType::ICMP)
         {
@@ -106,13 +113,13 @@ impl<'a> SmolSocket<'a> {
     }
 }
 
-pub struct SmolStack<'a, 'b: 'a, 'c: 'a + 'b, DeviceT>
+pub struct SmolStack<'a, 'b: 'a, 'c: 'a + 'b, 'e, DeviceT>
 where
     DeviceT: for<'d> Device<'d>,
 {
     pub sockets: SocketSet<'a, 'b, 'c>,
     current_key: usize,
-    smol_sockets: HashMap<usize, SmolSocket>,
+    smol_sockets: HashMap<usize, SmolSocket<'e>>,
     device: Option<DeviceT>,
     ip_addrs: Option<std::vec::Vec<IpCidr>>,
     default_v4_gw: Option<Ipv4Address>,
@@ -120,11 +127,11 @@ where
     pub interface: Option<Interface<'a, 'b, 'c, DeviceT>>,
 }
 
-impl<'a, 'b: 'a, 'c: 'a + 'b, DeviceT> SmolStack<'a, 'b, 'c, DeviceT>
+impl<'a, 'b: 'a, 'c: 'a + 'b, 'e, DeviceT> SmolStack<'a, 'b, 'c, 'e, DeviceT>
 where
     DeviceT: for<'d> Device<'d>,
 {
-    pub fn new(interface_name: String, device: DeviceT) -> SmolStack<'a, 'b, 'c, DeviceT> {
+    pub fn new(interface_name: String, device: DeviceT) -> SmolStack<'a, 'b, 'c, 'e, DeviceT> {
         let socket_set = SocketSet::new(vec![]);
         //let device = TunDevice::new(interface_name.as_str()).unwrap();
         let ip_addrs = std::vec::Vec::new();
@@ -192,7 +199,7 @@ where
         }
     }
 
-    pub fn get_smol_socket(&mut self, socket_handle_key: usize) -> Option<&mut SmolSocket<'a>> {
+    pub fn get_smol_socket(&mut self, socket_handle_key: usize) -> Option<&mut SmolSocket<'e>> {
         let smol_socket = self.smol_sockets.get_mut(&socket_handle_key);
         smol_socket
     }
@@ -317,6 +324,15 @@ where
             SocketType::TCP => {
                 let mut socket = self.sockets.get::<TcpSocket>(smol_socket.socket_handle);
                 let packet = smol_socket.get_latest_packet();
+                /*
+                let bytes_sent = socket.send_slice(packet.unwrap().slice);
+                match bytes_sent {
+                    Ok(_) => 0,
+                    Err(e) => 1,
+                }
+                */
+                
+                //let packet = Some(Packet{endpoint: None, slice: &[], socket_type: SocketType::ICMP});
                 match packet {
                     Some(packet) => {
                         println!("some packet");
@@ -329,7 +345,7 @@ where
                                 //in `smol_socket.current` so it's returned the next time
                                 //so we can continue sending it
                                 if b < packet.slice.len() {
-                                    smol_socket.current = Some(packet);
+                                    //smol_socket.current = Some(packet);
                                     0
                                 } else {
                                     //Sent the entire packet, nothing needs to be done
@@ -338,7 +354,7 @@ where
                             }
                             Err(e) => {
                                 println!("bytes not sent, ERROR {}, putting packet back", e);
-                                smol_socket.current = Some(packet);
+                                //smol_socket.current = Some(packet);
                                 1
                             }
                         }
@@ -348,6 +364,7 @@ where
                         1
                     }
                 }
+                
             }
             SocketType::UDP => {
                 let mut socket = self.sockets.get::<UdpSocket>(smol_socket.socket_handle);

@@ -19,19 +19,19 @@ pub enum SmolSocketType {
     Tun,
 }
 
-pub enum SmolStackType<'a, 'b: 'a, 'c: 'a + 'b> {
-    VirtualTun(SmolStack<'a, 'b, 'c, VirtualTunDevice>),
-    Tun(SmolStack<'a, 'b, 'c, TunDevice>),
+pub enum SmolStackType<'a, 'b: 'a, 'c: 'a + 'b, 'e> {
+    VirtualTun(SmolStack<'a, 'b, 'c, 'e, VirtualTunDevice>),
+    Tun(SmolStack<'a, 'b, 'c, 'e, TunDevice>),
 }
 
-impl<'a, 'b: 'a, 'c: 'a + 'b> SmolStackType<'a, 'b, 'c> {
-    pub fn new_virtual_tun(interface_name: String) -> Box<SmolStackType<'a, 'b, 'c>> {
+impl<'a, 'b: 'a, 'c: 'a + 'b, 'e> SmolStackType<'a, 'b, 'c, 'e> {
+    pub fn new_virtual_tun(interface_name: String) -> Box<SmolStackType<'a, 'b, 'c, 'e>> {
         let device = VirtualTunDevice::new(interface_name.as_str()).unwrap();
         let smol_stack = SmolStack::new(interface_name, device);
         Box::new(SmolStackType::VirtualTun(smol_stack))
     }
 
-    pub fn new_tun(interface_name: String) -> Box<SmolStackType<'a, 'b, 'c>> {
+    pub fn new_tun(interface_name: String) -> Box<SmolStackType<'a, 'b, 'c, 'e>> {
         let device = TunDevice::new(interface_name.as_str()).unwrap();
         let smol_stack = SmolStack::new(interface_name, device);
         Box::new(SmolStackType::Tun(smol_stack))
@@ -288,9 +288,9 @@ pub extern "C" fn registerOnPacketToOutside(callback: Option<OnPacketToOutside>)
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_smol_stack_new_virtual_tun<'a, 'b: 'a, 'c: 'a + 'b>(
+pub extern "C" fn smol_stack_smol_stack_new_virtual_tun<'a, 'b: 'a, 'c: 'a + 'b, 'e>(
     interface_name: *const c_char,
-) -> Box<SmolStackType<'a, 'b, 'c>> {
+) -> Box<SmolStackType<'a, 'b, 'c, 'e>> {
     let interface_name_c_str: &CStr = unsafe { CStr::from_ptr(interface_name) };
     let interface_name_slice: &str = interface_name_c_str.to_str().unwrap();
     let s: String = interface_name_slice.to_owned();
@@ -298,9 +298,9 @@ pub extern "C" fn smol_stack_smol_stack_new_virtual_tun<'a, 'b: 'a, 'c: 'a + 'b>
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_smol_stack_new_tun<'a, 'b: 'a, 'c: 'a + 'b>(
+pub extern "C" fn smol_stack_smol_stack_new_tun<'a, 'b: 'a, 'c: 'a + 'b, 'e>(
     interface_name: *const c_char,
-) -> Box<SmolStackType<'a, 'b, 'c>> {
+) -> Box<SmolStackType<'a, 'b, 'c, 'e>> {
     let interface_name_c_str: &CStr = unsafe { CStr::from_ptr(interface_name) };
     let interface_name_slice: &str = interface_name_c_str.to_str().unwrap();
     let s: String = interface_name_slice.to_owned();
@@ -400,8 +400,8 @@ pub extern "C" fn smol_stack_add_default_v6_gateway(
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_finalize<'a, 'b: 'a, 'c: 'a + 'b>(
-    smol_stack: &mut SmolStackType<'a, 'b, 'c>,
+pub extern "C" fn smol_stack_finalize<'a, 'b: 'a, 'c: 'a + 'b, 'e>(
+    smol_stack: &mut SmolStackType<'a, 'b, 'c, 'e>,
 ) -> u8 {
     smol_stack.finalize()
 }
