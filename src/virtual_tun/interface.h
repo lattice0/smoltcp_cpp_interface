@@ -199,9 +199,12 @@ public:
         }
     }
 
-    size_t addSocket(uint8_t socketType)
+    SmolSocket addSocket(uint8_t socketType)
     {
-        return smol_stack_add_socket(smolStackPtr, socketType);
+        size_t key = smol_stack_add_socket(smolStackPtr, socketType);
+        SmolSocket smolSocket;
+        smolSocket.SocketHandleKey = key;
+        return smolSocket;
     }
 
     size_t getNewHandle()

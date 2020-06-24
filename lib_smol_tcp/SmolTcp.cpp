@@ -40,9 +40,7 @@ int main()
     tunSmolStack.addDefaultV6Gateway(CIpv6Address{
         {0xfe80, 0, 0, 0, 0, 0, 0, 0x100}});
 
-    SocketHandleKey socketHandle = tunSmolStack.addSocket(SOCKET_TCP);
-    SmolSocket smolSocket;
-    smolSocket.SocketHandleKey = socketHandle;
+    SmolSocket smolSocket = tunSmolStack.addSocket(SOCKET_TCP);
     size_t smolSocketHandle = smolSockethandleMap.emplace(smolSocket);
     uint8_t result = tunSmolStack.finalize();
     CIpEndpoint endpointNone{
@@ -68,7 +66,7 @@ int main()
             {
                 std::cout << "connecting..." << std::endl;
                 uint16_t randomOutputPort = tunSmolStack.randomOutputPort();
-                tunSmolStack.connectIpv4(socketHandle, CIpv4Address{{172, 217, 28, 238}},
+                tunSmolStack.connectIpv4(smolSocket, CIpv4Address{{172, 217, 28, 238}},
                                          randomOutputPort, 80);
                 state = State::Request;
             }
@@ -79,13 +77,13 @@ int main()
                 std::string* s = new std::string(httpRequestData);
                 auto smolOwner = SmolOwner<std::string>::allocate(s);
                 const uint8_t *httpRequestDataBuffer = reinterpret_cast<const uint8_t *>(s->c_str());
-                tunSmolStack.send(socketHandle, httpRequestDataBuffer, httpRequestData.size(), endpointNone, smolOwner, destruct);
+                tunSmolStack.send(smolSocket, httpRequestDataBuffer, httpRequestData.size(), endpointNone, smolOwner, destruct);
                 state = State::Response;
             }
             if (state == State::Response)
             {
             }
-            tunSmolStack.spin(smolSocketHandle);
+            tunSmolStack.spin(smolSocket);
             //tunSmolStack.poll();
             //std::this_thread::sleep_for(std::chrono::milliseconds(10000));
         }
