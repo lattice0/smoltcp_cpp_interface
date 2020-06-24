@@ -11,6 +11,11 @@ use std::ffi::{CStr, c_void};
 use std::os::raw::{c_char, c_int};
 use std::slice;
 use std::str::{self};
+use smoltcp::phy::wait as phy_wait;
+use std::os::unix::io::AsRawFd;
+use smoltcp::phy::TunInterface;
+
+
 type OnPacketToOutside = unsafe extern "C" fn(data: *mut u8, len: usize, packet_type: u8) -> c_int;
 static mut onPacketToOutside: Option<OnPacketToOutside> = None;
 
@@ -158,6 +163,19 @@ impl<'a, 'b: 'a, 'c: 'a + 'b, 'e> SmolStackType<'a, 'b, 'c, 'e> {
             &mut SmolStackType::Tun(ref mut smol_stack) => smol_stack.spin(socket_handle_key),
         }
     }
+
+    pub fn phy_wait(&mut self) {
+        match self {
+            &mut SmolStackType::VirtualTun(ref mut smol_stack) => {
+                //phy_wait(smol_stack.device.unwrap().as_raw_fd(), smol_stack.interface.unwrap().poll_delay(&smol_stack.sockets, timestamp)).expect("wait error")
+            }
+            &mut SmolStackType::Tun(ref mut smol_stack) => {
+                phy_wait(smol_stack.device.unwrap().as_raw_fd(), smol_stack.interface.unwrap().poll_delay(&smol_stack.sockets, timestamp)).expect("wait error")
+            }
+        }
+    }
+
+
 }
 
 #[repr(C)]
@@ -348,6 +366,17 @@ pub extern "C" fn smol_stack_add_socket(smol_stack: &mut SmolStackType, socket_t
         _ => panic!("wrong type"),
     }
 }
+
+#[no_mangle]
+pub extern "C" fn smol_stack_phy_wait(smol_stack: &mut SmolStackType, socket_type: u8) {
+    match socket_type {
+        0 => smol_stack.phy_wait(),
+        1 => smol_stack.phy_wait(),
+        _ => panic!("wrong type"),
+    }
+}
+
+
 
 #[no_mangle]
 pub extern "C" fn smol_stack_tcp_connect_ipv4(

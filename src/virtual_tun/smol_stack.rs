@@ -20,6 +20,7 @@ use std::rc::Rc;
 use std::slice;
 use std::ffi::c_void;
 use std::sync::{Arc, Mutex};
+use smoltcp::phy::wait as phy_wait;
 
 #[derive(PartialEq, Clone)]
 pub enum SocketType {
@@ -108,7 +109,7 @@ where
     pub sockets: SocketSet<'a, 'b, 'c>,
     current_key: usize,
     smol_sockets: HashMap<usize, SmolSocket<'e>>,
-    device: Option<DeviceT>,
+    pub device: Option<DeviceT>,
     ip_addrs: Option<std::vec::Vec<IpCidr>>,
     default_v4_gw: Option<Ipv4Address>,
     default_v6_gw: Option<Ipv6Address>,
@@ -311,7 +312,7 @@ where
         match smol_socket.socket_type {
             SocketType::TCP => {
                 let mut socket = self.sockets.get::<TcpSocket>(smol_socket.socket_handle);
-                if socket.may_recv() {
+                if socket.may_send() {
                     let packet = smol_socket.get_latest_packet();
                     /*
                     let bytes_sent = socket.send_slice(packet.unwrap().slice);
@@ -338,27 +339,38 @@ where
                                     //so we can continue sending it
                                     if b < packet.blob.slice.len() {
                                         //smol_socket.current = Some(packet);
-                                        0
+                                        //0
                                     } else {
                                         //Sent the entire packet, nothing needs to be done
-                                        0
+                                        //0
                                     }
                                 }
                                 Err(e) => {
                                     println!("bytes not sent, ERROR {}, putting packet back", e);
                                     //smol_socket.current = Some(packet);
-                                    1
+                                    //1
                                 }
                             }
                         }
                         None => {
                             //println!("NO packet");
-                            1
+                            //1
                         }
                     }
                 } else {
-                    1
+                    //1
                 }
+                if socket.can_recv() {
+                    socket.recv(|data| {
+                        //println!("{}", str::from_utf8(data).unwrap_or("(invalid utf8)"));
+                        
+                        (data.len(), ())
+                    }).unwrap();
+                    //0
+                } else {
+                    //2
+                }
+                0
             }
             SocketType::UDP => {
                 let mut socket = self.sockets.get::<UdpSocket>(smol_socket.socket_handle);
