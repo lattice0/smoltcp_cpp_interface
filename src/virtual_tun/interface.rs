@@ -1,13 +1,13 @@
 extern crate rand;
 
 use super::smol_stack::SmolSocket;
-use super::smol_stack::{SmolStack, SocketType};
+use super::smol_stack::{SmolStack, SocketType, Packet, Blob};
 use super::virtual_tun::VirtualTunInterface as VirtualTunDevice;
 use smoltcp::phy::TunInterface as TunDevice;
 use smoltcp::socket::{SocketHandle, TcpSocket};
 use smoltcp::time::Instant;
 use smoltcp::wire::{IpAddress, IpCidr, IpEndpoint, Ipv4Address, Ipv6Address};
-use std::ffi::CStr;
+use std::ffi::{CStr, c_void};
 use std::os::raw::{c_char, c_int};
 use std::slice;
 use std::str::{self};
@@ -314,13 +314,23 @@ pub extern "C" fn smol_stack_smol_socket_send(
     data: *mut u8,
     len: usize,
     endpoint: CIpEndpoint,
+    pointer_to_owner: *const c_void,
+    pointer_to_destructor: unsafe extern "C" fn(*const c_void) -> u8
 ) -> u8 {
     let smol_socket = smol_stack.get_smol_socket(socket_handle_key);
     let packet_as_slice = unsafe { slice::from_raw_parts(data, len) };
-
+    let packet = Packet {
+        blob: Blob{
+            slice: packet_as_slice, 
+            start: 0,
+            pointer_to_owner: pointer_to_owner, 
+            pointer_to_destructor: pointer_to_destructor
+        },
+        endpoint: Into::<Option<IpEndpoint>>::into(endpoint),
+    };
     match smol_socket {
         Some(smol_socket_) => {
-            smol_socket_.send(packet_as_slice, Into::<Option<IpEndpoint>>::into(endpoint));
+            smol_socket_.send(packet);
             0
         }
         None => 1,

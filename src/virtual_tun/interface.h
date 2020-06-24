@@ -101,7 +101,7 @@ extern "C" void smol_stack_poll(SmolStackPtr);
 extern "C" void smol_stack_spin(SmolStackPtr, size_t handle);
 extern "C" void smol_stack_tcp_connect_ipv4(SmolStackPtr, size_t handle, CIpv4Address, uint8_t, uint8_t);
 extern "C" void smol_stack_tcp_connect_ipv6(SmolStackPtr, size_t handle, CIpv6Address, uint8_t, uint8_t);
-extern "C" uint8_t smol_stack_smol_socket_send(SmolStackPtr, size_t handle, const uint8_t *data, size_t len, CIpEndpoint endpoint);
+extern "C" uint8_t smol_stack_smol_socket_send(SmolStackPtr, size_t handle, const uint8_t *data, size_t len, CIpEndpoint endpoint, void*, uint8_t (*)(void*));
 extern "C" void smol_stack_add_ipv4_address(SmolStackPtr, CIpv4Cidr);
 extern "C" void smol_stack_add_ipv6_address(SmolStackPtr, CIpv6Cidr);
 extern "C" void smol_stack_add_default_v4_gateway(SmolStackPtr, CIpv4Address);
@@ -122,6 +122,33 @@ public:
     SocketHandleKey SocketHandleKey;
 };
 
+template <typename T>
+class SmolOwner
+{
+private:
+    /*
+        SmolOwner owns the pointer to this type and
+        it's responsible for deleting it when it's 
+        destructed
+    */
+    T *t;
+    SmolOwner(T *t)
+    {
+        this->t = t;
+    }
+public:
+    //Prevents SmolOwner to be created on stack
+    static SmolOwner* allocate(T* t) {
+        return new SmolOwner(t);
+    }
+
+    ~SmolOwner()
+    {
+        std::cout << "~SmolOwner called" << std::endl;
+        delete t;
+    }
+};
+
 class TunSmolStack
 {
 private:
@@ -133,12 +160,17 @@ private:
 public:
     TunSmolStack(std::string interfaceName, StackType stackType)
     {
-        if (stackType == StackType::VirtualTun) {
+        if (stackType == StackType::VirtualTun)
+        {
             smolStackPtr = smol_stack_smol_stack_new_virtual_tun(interfaceName.c_str());
-        } else if (stackType == StackType::Tun) {
+        }
+        else if (stackType == StackType::Tun)
+        {
             std::cout << "creating TUN device" << std::endl;
             smolStackPtr = smol_stack_smol_stack_new_tun(interfaceName.c_str());
-        } else if (stackType == StackType::Tap) {
+        }
+        else if (stackType == StackType::Tap)
+        {
             //throw error
         }
     }
@@ -158,14 +190,24 @@ public:
         smol_stack_spin(smolStackPtr, handle);
     }
 
-    void send(size_t handle, const uint8_t *data, size_t len, CIpEndpoint endpoint)
+    /*
+        On the act of send, we specify the handle for the socket, the pointer do the data,
+        which is the most important type, and its lenght. For UDP and IGMP sockets we also
+        have to pass an endpoint (TCP does not need since we call connect before sending).
+        Then, we pass a pointer to `SmolOwner`, which is a class that owns the object that
+        owns `uint8_t* data`. We also pass the destructor function, which is the function 
+        that accepts the `SmolOwner` pointer and deletes it. This function is supposed to
+        be called from Rust when it does not need the data `uint8_t* data` anymore.
+    */
+    template<typename T>
+    void send(size_t handle, const uint8_t *data, size_t len, CIpEndpoint endpoint, SmolOwner<T>* pointerToSmolOwner, uint8_t (*smolOwnerDestructor)(void*))
     {
-        smol_stack_smol_socket_send(smolStackPtr, handle, data, len, endpoint);
+        smol_stack_smol_socket_send(smolStackPtr, handle, data, len, endpoint, static_cast<void*>(pointerToSmolOwner), smolOwnerDestructor);
     }
 
     void connectIpv4(size_t socket_handle, CIpv4Address address, uint8_t src_port, uint8_t dst_port)
     {
-        smol_stack_tcp_connect_ipv4(smolStackPtr, socket_handle,  address, src_port, dst_port);
+        smol_stack_tcp_connect_ipv4(smolStackPtr, socket_handle, address, src_port, dst_port);
     }
 
     uint16_t randomOutputPort()

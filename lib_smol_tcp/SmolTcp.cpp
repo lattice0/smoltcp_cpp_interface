@@ -3,9 +3,20 @@
 #include <map>
 #include <thread>
 #include <chrono>
+/*
+    Destructor for us to pass to smol socket send function
+    Is destructs SmolOwner functions
+*/
+extern "C" uint8_t destruct(void *smolOwner_)
+{
+    std::cout << "smol owner destruct called" << std::endl;
+    SmolOwner<std::string> *smolOwner = static_cast<SmolOwner<std::string> *>(smolOwner_);
+    delete smolOwner;
+    return 0;
+}
+
 int main()
 {
-    std::string httpRequestData("GET /index.html HTTP/1.1\r\nHost: www.google.com\r\nConnection: Keep-Alive\r\n\r\n");
     HandleMap<SmolSocket> smolSockethandleMap;
     TunSmolStack tunSmolStack("tun1", StackType::Tun);
 
@@ -32,9 +43,7 @@ int main()
     SocketHandleKey socketHandle = tunSmolStack.addSocket(SOCKET_TCP);
     SmolSocket smolSocket;
     smolSocket.SocketHandleKey = socketHandle;
-    std::cout << "smol socket handle key " << socketHandle << std::endl;
     size_t smolSocketHandle = smolSockethandleMap.emplace(smolSocket);
-    std::cout << "smolSocketHandle " << socketHandle << std::endl;
     uint8_t result = tunSmolStack.finalize();
     CIpEndpoint endpointNone{
         CIpEndpointType::None,
@@ -59,23 +68,22 @@ int main()
             {
                 std::cout << "connecting..." << std::endl;
                 uint16_t randomOutputPort = tunSmolStack.randomOutputPort();
-                tunSmolStack.connectIpv4(socketHandle, CIpv4Address{
-                                             {172,217,28,238}},
+                tunSmolStack.connectIpv4(socketHandle, CIpv4Address{{172, 217, 28, 238}},
                                          randomOutputPort, 80);
                 state = State::Request;
             }
             if (state == State::Request)
             {
                 std::this_thread::sleep_for(std::chrono::milliseconds(10000));
-                //std::string httpRequestData("GET /index.html HTTP/1.1\r\nHost: www.google.com\r\nConnection: Keep-Alive\r\n\r\n");
-                std::cout << "HTTP: " << httpRequestData << std::endl;
-                const uint8_t* httpRequestDataBuffer = reinterpret_cast<const uint8_t*>(httpRequestData.c_str());
-                tunSmolStack.send(socketHandle, httpRequestDataBuffer, httpRequestData.size(), endpointNone);
+                std::string httpRequestData("GET /index.html HTTP/1.1\r\nHost: www.google.com\r\nConnection: Keep-Alive\r\n\r\n");
+                std::string* s = new std::string(httpRequestData);
+                auto smolOwner = SmolOwner<std::string>::allocate(s);
+                const uint8_t *httpRequestDataBuffer = reinterpret_cast<const uint8_t *>(s->c_str());
+                tunSmolStack.send(socketHandle, httpRequestDataBuffer, httpRequestData.size(), endpointNone, smolOwner, destruct);
                 state = State::Response;
             }
             if (state == State::Response)
             {
-
             }
             tunSmolStack.spin(smolSocketHandle);
             //tunSmolStack.poll();

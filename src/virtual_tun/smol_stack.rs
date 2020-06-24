@@ -18,6 +18,7 @@ use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::rc::Rc;
 use std::slice;
+use std::ffi::c_void;
 use std::sync::{Arc, Mutex};
 
 #[derive(PartialEq, Clone)]
@@ -29,30 +30,32 @@ pub enum SocketType {
     UDP,
 }
 
-pub struct Blob {
-    data: *mut u8,
-    len: usize,
-    start: usize,
+pub struct Blob<'a> {
+    pub slice: &'a [u8],
+    pub start: usize,
+    //A pointer do the object (SmolOwner in C++) that owns the data on the slice
+    pub pointer_to_owner: *const c_void,
+    /*
+        Function pointer to the function that receives the pointer_to_owner
+        and deletes it, thus callings its destructor which deletes the owner
+        of the data on the slice, which deletes the data on the slice
+    */
+    pub pointer_to_destructor: unsafe extern "C" fn(*const c_void) -> u8
 }
 
 pub struct Packet<'a> {
-    socket_type: SocketType,
-    slice: &'a [u8],
-    endpoint: Option<IpEndpoint>,
+    pub blob: Blob<'a>,
+    pub endpoint: Option<IpEndpoint>,
 }
 
-impl Drop for Blob {
+impl<'a> Drop for Blob<'a> {
     fn drop(&mut self) {
-        //
+        println!("blob drop!");
+        let f = self.pointer_to_destructor;
+        let r = unsafe{f(self.pointer_to_owner)};
+        println!("blob drop result: {}", r);
     }
 }
-/*
-impl Drop for Packet {
-    fn drop(&mut self) {
-        //
-    }
-}
-*/
 
 pub struct SmolSocket<'a> {
     pub socket_type: SocketType,
@@ -72,18 +75,12 @@ impl<'a> SmolSocket<'a> {
         }
     }
 
-    pub fn send(&mut self, slice: &'a [u8], endpoint: Option<IpEndpoint>) -> u8 {
-        if endpoint.is_none()
+    pub fn send(&mut self, packet: Packet<'a>) -> u8 {
+        if packet.endpoint.is_none()
             && (self.socket_type == SocketType::UDP || self.socket_type == SocketType::ICMP)
         {
             panic!("this socket type needs an endpoint to send to");
         }
-        //println!("gonna send this slice2: {}", slice);
-        let packet = Packet {
-            socket_type: self.socket_type.clone(),
-            slice: slice,
-            endpoint: endpoint,
-        };
         self.packets.lock().unwrap().push_back(packet);
         0
     }
@@ -329,17 +326,17 @@ where
                         Some(packet) => {
                             println!("some packet");
                             use std::str;
-                            if let Ok(s) = str::from_utf8(packet.slice) {
+                            if let Ok(s) = str::from_utf8(packet.blob.slice) {
                                 println!("{}", s);
                             }
-                            let bytes_sent = socket.send_slice(packet.slice);
+                            let bytes_sent = socket.send_slice(packet.blob.slice);
                             match bytes_sent {
                                 Ok(b) => {
                                     println!("sent {} bytes", b);
                                     //Sent less than entire packet, so we must put this packet
                                     //in `smol_socket.current` so it's returned the next time
                                     //so we can continue sending it
-                                    if b < packet.slice.len() {
+                                    if b < packet.blob.slice.len() {
                                         //smol_socket.current = Some(packet);
                                         0
                                     } else {
@@ -367,7 +364,7 @@ where
                 let mut socket = self.sockets.get::<UdpSocket>(smol_socket.socket_handle);
                 let packet = smol_socket.get_latest_packet().unwrap();
                 //TODO: send correct slice
-                let bytes_sent = socket.send_slice(packet.slice, packet.endpoint.unwrap());
+                let bytes_sent = socket.send_slice(packet.blob.slice, packet.endpoint.unwrap());
                 match bytes_sent {
                     Ok(_) => 0,
                     Err(e) => 1,
