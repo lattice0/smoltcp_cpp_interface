@@ -155,12 +155,14 @@ impl<'a, 'b: 'a, 'c: 'a + 'b, 'e> SmolStackType<'a, 'b, 'c, 'e> {
         }
     }
 
-    pub fn spin(&mut self, socket_handle_key: usize) -> u8 {
+    pub fn spin(&mut self, rust_handle_key: usize, cpp_handle_key: usize) -> u8 {
         match self {
             &mut SmolStackType::VirtualTun(ref mut smol_stack) => {
-                smol_stack.spin(socket_handle_key)
+                smol_stack.spin(rust_handle_key, cpp_handle_key)
             }
-            &mut SmolStackType::Tun(ref mut smol_stack) => smol_stack.spin(socket_handle_key),
+            &mut SmolStackType::Tun(ref mut smol_stack) => {
+                smol_stack.spin(rust_handle_key, cpp_handle_key)
+            }
         }
     }
 

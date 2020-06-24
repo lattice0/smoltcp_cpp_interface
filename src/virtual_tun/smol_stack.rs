@@ -306,8 +306,8 @@ where
         }
     }
 
-    pub fn spin(&mut self, socket_handle_key: usize) -> u8 {
-        let smol_socket = self.smol_sockets.get_mut(&socket_handle_key).unwrap();
+    pub fn spin(&mut self, rust_handle_key: usize, cpp_handle_key: usize) -> u8 {
+        let smol_socket = self.smol_sockets.get_mut(&rust_handle_key).unwrap();
         //println!("spin");
         match smol_socket.socket_type {
             SocketType::TCP => {
@@ -363,7 +363,7 @@ where
                 if socket.can_recv() {
                     socket.recv(|data| {
                         //println!("{}", str::from_utf8(data).unwrap_or("(invalid utf8)"));
-                        
+
                         (data.len(), ())
                     }).unwrap();
                     //0

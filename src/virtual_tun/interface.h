@@ -3,6 +3,7 @@
 #include <unordered_map>
 #include <random>
 #include <limits>
+#include <queue>
 
 typedef void *SmolStackPtr;
 typedef size_t SocketHandleKey;
@@ -98,10 +99,10 @@ extern "C" SmolStackPtr smol_stack_smol_stack_new_virtual_tun(const char *interf
 extern "C" SmolStackPtr smol_stack_smol_stack_new_tun(const char *interfaceName);
 extern "C" size_t smol_stack_add_socket(SmolStackPtr, uint8_t);
 extern "C" void smol_stack_poll(SmolStackPtr);
-extern "C" void smol_stack_spin(SmolStackPtr, size_t handle);
-extern "C" void smol_stack_tcp_connect_ipv4(SmolStackPtr, size_t handle, CIpv4Address, uint8_t, uint8_t);
-extern "C" void smol_stack_tcp_connect_ipv6(SmolStackPtr, size_t handle, CIpv6Address, uint8_t, uint8_t);
-extern "C" uint8_t smol_stack_smol_socket_send(SmolStackPtr, size_t handle, const uint8_t *data, size_t len, CIpEndpoint endpoint, void*, uint8_t (*)(void*));
+extern "C" void smol_stack_spin(SmolStackPtr, size_t rustSmolSocketHandle, size_t cppSmolSocketHandle);
+extern "C" void smol_stack_tcp_connect_ipv4(SmolStackPtr, size_t handle, CIpv4Address, uint8_t src_port, uint8_t dst_port);
+extern "C" void smol_stack_tcp_connect_ipv6(SmolStackPtr, size_t handle, CIpv6Address, uint8_t src_port, uint8_t dst_port);
+extern "C" uint8_t smol_stack_smol_socket_send(SmolStackPtr, size_t handle, const uint8_t *data, size_t len, CIpEndpoint endpoint, void *, uint8_t (*)(void *));
 extern "C" void smol_stack_add_ipv4_address(SmolStackPtr, CIpv4Cidr);
 extern "C" void smol_stack_add_ipv6_address(SmolStackPtr, CIpv6Cidr);
 extern "C" void smol_stack_add_default_v4_gateway(SmolStackPtr, CIpv4Address);
@@ -115,11 +116,24 @@ enum StackType
     Tap
 };
 
+class RustSlice {
+public:
+    uint8_t* data;
+    size_t len;
+    RustSlice(uint8_t* data, size_t len): data(data), len(len) {
+
+    }
+    ~RustSlice() {
+        //destroy on Rust
+    }
+};
+
 class SmolSocket
 {
 public:
-    unsigned int id = 0;
+    //unsigned int id = 0;
     SocketHandleKey SocketHandleKey;
+    std::queue<RustSlice> packets;
 };
 
 template <typename T>
@@ -136,9 +150,17 @@ private:
     {
         this->t = t;
     }
+    /*
+        Both Rust and C++ keep handles to SmolSocket objects. These handles
+        are passed from C++ to Rust and from Rust to C++ instead of passing
+        pointers to SmolSocket objects, which is unsafe. The values do not need
+        to be equal on both sides. 
+    */
+    //HandleMap<SmolSocket> smolSocketHandles;
 public:
     //Prevents SmolOwner to be created on stack
-    static SmolOwner* allocate(T* t) {
+    static SmolOwner *allocate(T *t)
+    {
         return new SmolOwner(t);
     }
 
@@ -156,6 +178,8 @@ private:
     std::random_device rd;
     std::mt19937 mt{rd()};
     std::uniform_int_distribution<int> random{49152, 49152 + 16383};
+    size_t currentIndex = 0;
+    std::unordered_map<size_t, SmolSocket> smolSocketHandles;
 
 public:
     TunSmolStack(std::string interfaceName, StackType stackType)
@@ -180,14 +204,33 @@ public:
         return smol_stack_add_socket(smolStackPtr, socketType);
     }
 
+    size_t getNewHandle()
+    {
+        if (currentIndex < std::numeric_limits<size_t>::max())
+        {
+            currentIndex += 1;
+            return currentIndex;
+        }
+        else
+        {
+            throw std::runtime_error("Reached handle too big, you're using too much sockets\n");
+        }
+    }
+
+    size_t addSmolSocket(SmolSocket smolSocket)
+    {
+        size_t handle = getNewHandle();
+        smolSocketHandles[handle] = smolSocket;
+    }
+
     void poll()
     {
         smol_stack_poll(smolStackPtr);
     }
 
-    void spin(size_t handle)
+    void spin(size_t rustSmolSocketHandle, size_t cppSmolSocketHandle)
     {
-        smol_stack_spin(smolStackPtr, handle);
+        smol_stack_spin(smolStackPtr, rustSmolSocketHandle, cppSmolSocketHandle);
     }
 
     /*
@@ -199,10 +242,10 @@ public:
         that accepts the `SmolOwner` pointer and deletes it. This function is supposed to
         be called from Rust when it does not need the data `uint8_t* data` anymore.
     */
-    template<typename T>
-    void send(size_t handle, const uint8_t *data, size_t len, CIpEndpoint endpoint, SmolOwner<T>* pointerToSmolOwner, uint8_t (*smolOwnerDestructor)(void*))
+    template <typename T>
+    void send(size_t handle, const uint8_t *data, size_t len, CIpEndpoint endpoint, SmolOwner<T> *pointerToSmolOwner, uint8_t (*smolOwnerDestructor)(void *))
     {
-        smol_stack_smol_socket_send(smolStackPtr, handle, data, len, endpoint, static_cast<void*>(pointerToSmolOwner), smolOwnerDestructor);
+        smol_stack_smol_socket_send(smolStackPtr, handle, data, len, endpoint, static_cast<void *>(pointerToSmolOwner), smolOwnerDestructor);
     }
 
     void connectIpv4(size_t socket_handle, CIpv4Address address, uint8_t src_port, uint8_t dst_port)
