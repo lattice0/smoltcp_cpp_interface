@@ -144,7 +144,7 @@ where
         self.current_key
     }
 
-    pub fn add_socket(&mut self, socket_type: SocketType, socket_handle: usize) -> u8 {
+    pub fn add_socket(&mut self, socket_type: SocketType, smol_socket_handle: usize) -> u8 {
         match socket_type {
             SocketType::TCP => {
                 let rx_buffer = TcpSocketBuffer::new(vec![0; 1024]);
@@ -153,7 +153,7 @@ where
                 let handle = self.sockets.add(socket);
                 //let handke_key = self.new_socket_handle_key();
                 let smol_socket = SmolSocket::new(handle, SocketType::TCP);
-                self.smol_sockets.insert(socket_handle, smol_socket);
+                self.smol_sockets.insert(smol_socket_handle, smol_socket);
                 0
             }
             SocketType::UDP => {
@@ -163,7 +163,7 @@ where
                 let handle = self.sockets.add(socket);
                 //let handke_key = self.new_socket_handle_key();
                 let smol_socket = SmolSocket::new(handle, SocketType::UDP);
-                self.smol_sockets.insert(socket_handle, smol_socket);
+                self.smol_sockets.insert(smol_socket_handle, smol_socket);
                 0
             }
             /*
@@ -189,23 +189,23 @@ where
         }
     }
 
-    pub fn get_smol_socket(&mut self, socket_handle_key: usize) -> Option<&mut SmolSocket<'e>> {
-        let smol_socket = self.smol_sockets.get_mut(&socket_handle_key);
+    pub fn get_smol_socket(&mut self, smol_socket_handle: usize) -> Option<&mut SmolSocket<'e>> {
+        let smol_socket = self.smol_sockets.get_mut(&smol_socket_handle);
         smol_socket
     }
 
     pub fn tcp_connect_ipv4(
         &mut self,
-        socket_handle_key: usize,
+        smol_socket_handle: usize,
         address: CIpv4Address,
         src_port: u16,
         dst_port: u16,
     ) -> u8 {
         println!(
             "gonna get smol socket with handle key {}",
-            socket_handle_key
+            smol_socket_handle
         );
-        let smol_socket_ = self.smol_sockets.get(&socket_handle_key);
+        let smol_socket_ = self.smol_sockets.get(&smol_socket_handle);
         match smol_socket_ {
             Some(smol_socket) => {
                 let socket_handle = smol_socket.socket_handle;
@@ -231,12 +231,12 @@ where
 
     pub fn tcp_connect_ipv6(
         &mut self,
-        socket_handle_key: usize,
+        smol_socket_handle: usize,
         address: CIpv6Address,
         src_port: u16,
         dst_port: u16,
     ) -> u8 {
-        let smol_socket_ = self.smol_sockets.get(&socket_handle_key);
+        let smol_socket_ = self.smol_sockets.get(&smol_socket_handle);
         match smol_socket_ {
             Some(smol_socket) => {
                 let socket_handle = smol_socket.socket_handle;
@@ -307,8 +307,8 @@ where
         }
     }
 
-    pub fn spin(&mut self, socket_handle: usize) -> u8 {
-        let smol_socket = self.smol_sockets.get_mut(&socket_handle).unwrap();
+    pub fn spin(&mut self, smol_socket_handle: usize) -> u8 {
+        let smol_socket = self.smol_sockets.get_mut(&smol_socket_handle).unwrap();
         //println!("spin");
         match smol_socket.socket_type {
             SocketType::TCP => {

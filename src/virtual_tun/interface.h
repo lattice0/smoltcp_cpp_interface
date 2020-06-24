@@ -4,12 +4,23 @@
 #include <random>
 #include <limits>
 #include <queue>
+#include <chrono>
 
 typedef void *SmolStackPtr;
 typedef size_t SocketHandle;
 
 static const int SOCKET_TCP = 0;
 static const int SOCKET_UDP = 1;
+
+using namespace std::chrono;
+
+class Instant
+{
+public:
+    static milliseconds now() {
+        return duration_cast<milliseconds>(system_clock::now().time_since_epoch());
+    } 
+};
 
 template <typename T>
 class HandleMap
@@ -97,7 +108,7 @@ extern "C" void cppDeletePointer(uint8_t *data)
 
 extern "C" SmolStackPtr smol_stack_smol_stack_new_virtual_tun(const char *interfaceName);
 extern "C" SmolStackPtr smol_stack_smol_stack_new_tun(const char *interfaceName);
-extern "C" size_t smol_stack_add_socket(SmolStackPtr, uint8_t socketType, SocketHandle socketHandle);
+extern "C" uint8_t smol_stack_add_socket(SmolStackPtr, uint8_t socketType, SocketHandle socketHandle);
 extern "C" void smol_stack_poll(SmolStackPtr);
 extern "C" void smol_stack_spin(SmolStackPtr, SocketHandle socketHandle);
 extern "C" void smol_stack_tcp_connect_ipv4(SmolStackPtr, SocketHandle socketHandle, CIpv4Address, uint8_t src_port, uint8_t dst_port);
@@ -116,14 +127,16 @@ enum StackType
     Tap
 };
 
-class RustSlice {
+class RustSlice
+{
 public:
-    uint8_t* data;
+    uint8_t *data;
     size_t len;
 
-    RustSlice(uint8_t* data, size_t len): data(data), len(len) {}
+    RustSlice(uint8_t *data, size_t len) : data(data), len(len) {}
 
-    ~RustSlice() {
+    ~RustSlice()
+    {
         //destroy on Rust
     }
 };
@@ -236,9 +249,9 @@ public:
         smol_stack_poll(smolStackPtr);
     }
 
-    void spin(SocketHandle socketHandle)
+    void spin(SmolSocket smolSocket)
     {
-        smol_stack_spin(smolStackPtr, socketHandle);
+        smol_stack_spin(smolStackPtr, smolSocket.handle);
     }
 
     /*
@@ -251,14 +264,14 @@ public:
         be called from Rust when it does not need the data `uint8_t* data` anymore.
     */
     template <typename T>
-    void send(size_t handle, const uint8_t *data, size_t len, CIpEndpoint endpoint, SmolOwner<T> *pointerToSmolOwner, uint8_t (*smolOwnerDestructor)(void *))
+    void send(SmolSocket smolSocket, const uint8_t *data, size_t len, CIpEndpoint endpoint, SmolOwner<T> *pointerToSmolOwner, uint8_t (*smolOwnerDestructor)(void *))
     {
-        smol_stack_smol_socket_send(smolStackPtr, handle, data, len, endpoint, static_cast<void *>(pointerToSmolOwner), smolOwnerDestructor);
+        smol_stack_smol_socket_send(smolSocket.handle, handle, data, len, endpoint, static_cast<void *>(pointerToSmolOwner), smolOwnerDestructor);
     }
 
-    void connectIpv4(size_t socket_handle, CIpv4Address address, uint8_t src_port, uint8_t dst_port)
+    void connectIpv4(SmolSocket smolSocket, CIpv4Address address, uint8_t src_port, uint8_t dst_port)
     {
-        smol_stack_tcp_connect_ipv4(smolStackPtr, socket_handle, address, src_port, dst_port);
+        smol_stack_tcp_connect_ipv4(smolStackPtr, smolSocket.handle, address, src_port, dst_port);
     }
 
     uint16_t randomOutputPort()
@@ -266,9 +279,9 @@ public:
         return random(mt);
     }
 
-    void connectIpv6(size_t socket_handle, CIpv6Address address, uint8_t src_port, uint8_t dst_port)
+    void connectIpv6(SmolSocket smolSocket, CIpv6Address address, uint8_t src_port, uint8_t dst_port)
     {
-        smol_stack_tcp_connect_ipv6(smolStackPtr, socket_handle, address, src_port, dst_port);
+        smol_stack_tcp_connect_ipv6(smolStackPtr, smolSocket.handle, address, src_port, dst_port);
     }
 
     void addIpv4Address(CIpv4Cidr cidr)

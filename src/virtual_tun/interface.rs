@@ -54,9 +54,9 @@ impl<'a, 'b: 'a, 'c: 'a + 'b, 'e> SmolStackType<'a, 'b, 'c, 'e> {
         }
     }
 
-    pub fn add_socket(&mut self, socket_type: SocketType, socket_handle: usize) -> usize {
+    pub fn add_socket(&mut self, socket_type: SocketType, socket_handle: usize) -> u8 {
         match self {
-            &mut SmolStackType::VirtualTun(ref mut smol_stack) => smol_stack.add_socket(socket_type, socket_handle)
+            &mut SmolStackType::VirtualTun(ref mut smol_stack) => smol_stack.add_socket(socket_type, socket_handle),
             &mut SmolStackType::Tun(ref mut smol_stack) => smol_stack.add_socket(socket_type, socket_handle),
         }
     }
@@ -156,24 +156,24 @@ impl<'a, 'b: 'a, 'c: 'a + 'b, 'e> SmolStackType<'a, 'b, 'c, 'e> {
         }
     }
 
-    pub fn spin(&mut self, rust_handle_key: usize, cpp_handle_key: usize) -> u8 {
+    pub fn spin(&mut self, socket_handle: usize) -> u8 {
         match self {
             &mut SmolStackType::VirtualTun(ref mut smol_stack) => {
-                smol_stack.spin(rust_handle_key, cpp_handle_key)
+                smol_stack.spin(socket_handle)
             }
             &mut SmolStackType::Tun(ref mut smol_stack) => {
-                smol_stack.spin(rust_handle_key, cpp_handle_key)
+                smol_stack.spin(socket_handle)
             }
         }
     }
 
-    pub fn phy_wait(&mut self) {
+    pub fn phy_wait(&mut self, timestamp: i64) {
         match self {
             &mut SmolStackType::VirtualTun(ref mut smol_stack) => {
                 //phy_wait(smol_stack.device.unwrap().as_raw_fd(), smol_stack.interface.unwrap().poll_delay(&smol_stack.sockets, timestamp)).expect("wait error")
             }
             &mut SmolStackType::Tun(ref mut smol_stack) => {
-                phy_wait(smol_stack.device.unwrap().as_raw_fd(), smol_stack.interface.unwrap().poll_delay(&smol_stack.sockets, timestamp)).expect("wait error")
+                phy_wait(smol_stack.device.unwrap().as_raw_fd(), smol_stack.interface.unwrap().poll_delay(&smol_stack.sockets, Instant::from_millis(timestamp))).expect("wait error")
             }
         }
     }
@@ -356,19 +356,19 @@ pub extern "C" fn rust_kill_slice_u8(slice: &[u8]) {
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_add_socket(smol_stack: &mut SmolStackType, socket_type: u8) -> usize {
+pub extern "C" fn smol_stack_add_socket(smol_stack: &mut SmolStackType, socket_type: u8, socket_handle: usize) -> u8 {
     match socket_type {
-        0 => smol_stack.add_socket(SocketType::TCP),
-        1 => smol_stack.add_socket(SocketType::UDP),
+        0 => smol_stack.add_socket(SocketType::TCP, socket_handle),
+        1 => smol_stack.add_socket(SocketType::UDP, socket_handle),
         _ => panic!("wrong type"),
     }
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_phy_wait(smol_stack: &mut SmolStackType, socket_type: u8) {
+pub extern "C" fn smol_stack_phy_wait(smol_stack: &mut SmolStackType, socket_type: u8, timestamp: i64) {
     match socket_type {
-        0 => smol_stack.phy_wait(),
-        1 => smol_stack.phy_wait(),
+        0 => smol_stack.phy_wait(timestamp),
+        1 => smol_stack.phy_wait(timestamp),
         _ => panic!("wrong type"),
     }
 }
