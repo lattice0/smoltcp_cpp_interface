@@ -123,7 +123,6 @@ where
 {
     pub fn new(interface_name: String, device: DeviceT) -> SmolStack<'a, 'b, 'c, 'e, DeviceT> {
         let socket_set = SocketSet::new(vec![]);
-        //let device = TunDevice::new(interface_name.as_str()).unwrap();
         let ip_addrs = std::vec::Vec::new();
 
         SmolStack {
