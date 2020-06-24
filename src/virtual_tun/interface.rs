@@ -15,15 +15,18 @@ use smoltcp::phy::wait as phy_wait;
 use std::os::unix::io::AsRawFd;
 use smoltcp::phy::TunInterface;
 
-
-type OnPacketToOutside = unsafe extern "C" fn(data: *mut u8, len: usize, packet_type: u8) -> c_int;
-static mut onPacketToOutside: Option<OnPacketToOutside> = None;
-
 pub enum SmolSocketType {
     VirtualTun,
     Tun,
 }
 
+/*
+    Proxy that switches the function call to the right 
+    instance based on socket type. Had to do this 
+    to support different Device types because SmolStack
+    is templated on Device, because Interface (which is
+    from smoltcp) is templated on Device
+*/
 pub enum SmolStackType<'a, 'b: 'a, 'c: 'a + 'b, 'e> {
     VirtualTun(SmolStack<'a, 'b, 'c, 'e, VirtualTunDevice>),
     Tun(SmolStack<'a, 'b, 'c, 'e, TunDevice>),
@@ -242,7 +245,7 @@ impl Into<IpAddress> for CIpv6Address {
     }
 }
 
-//Keep synced with CIpEndpointType on interface.h
+//Warning: keep this synced with CIpEndpointType on interface.h
 static CIpEndpoint_NONE: u8 = 0;
 static CIPENDPOINT_IPV4: u8 = 1;
 static CIPENDPOINT_IPV6: u8 = 0;
@@ -300,14 +303,6 @@ pub struct CIpv6Cidr {
 }
 
 #[no_mangle]
-pub extern "C" fn registerOnPacketToOutside(callback: Option<OnPacketToOutside>) -> c_int {
-    unsafe {
-        onPacketToOutside = callback;
-    }
-    0
-}
-
-#[no_mangle]
 pub extern "C" fn smol_stack_smol_stack_new_virtual_tun<'a, 'b: 'a, 'c: 'a + 'b, 'e>(
     interface_name: *const c_char,
 ) -> Box<SmolStackType<'a, 'b, 'c, 'e>> {
@@ -357,8 +352,10 @@ pub extern "C" fn smol_stack_smol_socket_send(
     }
 }
 
-//packets (ethernet, ip, tcp, etc) from the world to the stack
-pub extern "C" fn smol_stack_receive_packet(data: *mut u8, len: usize, packet_type: u8) {}
+//Just by owning the slice again, it kills it?
+pub extern "C" fn rust_kill_slice_u8(slice: &[u8]) {
+
+}
 
 #[no_mangle]
 pub extern "C" fn smol_stack_add_socket(smol_stack: &mut SmolStackType, socket_type: u8) -> usize {
@@ -378,8 +375,6 @@ pub extern "C" fn smol_stack_phy_wait(smol_stack: &mut SmolStackType, socket_typ
     }
 }
 
-
-
 #[no_mangle]
 pub extern "C" fn smol_stack_tcp_connect_ipv4(
     smol_stack: &mut SmolStackType,
@@ -388,8 +383,6 @@ pub extern "C" fn smol_stack_tcp_connect_ipv4(
     src_port: u16,
     dst_port: u16,
 ) -> u8 {
-    println!("smol_stack_tcp_connect_ipv4 handle {}", socket_handle_key);
-
     smol_stack.tcp_connect_ipv4(socket_handle_key, address, src_port, dst_port)
 }
 
@@ -410,8 +403,8 @@ pub extern "C" fn smol_stack_poll(smol_stack: &mut SmolStackType) -> u8 {
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_spin(smol_stack: &mut SmolStackType, socket_handle_key: usize) -> u8 {
-    smol_stack.spin(socket_handle_key)
+pub extern "C" fn smol_stack_spin(smol_stack: &mut SmolStackType, rust_handle_key: usize, cpp_handle_key: usize) -> u8 {
+    smol_stack.spin(rust_handle_key, cpp_handle_key)
 }
 
 #[no_mangle]
