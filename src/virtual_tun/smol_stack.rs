@@ -31,6 +31,10 @@ pub enum SocketType {
     UDP,
 }
 
+pub struct Blob2<'a> {
+    pub slice: &'a[u8],
+}
+
 pub struct Blob<'a> {
     pub slice: &'a [u8],
     pub start: usize,
@@ -362,9 +366,10 @@ where
                 }
                 if socket.can_recv() {
                     socket.recv(|data| {
+                        let len = data.len();
                         //println!("{}", str::from_utf8(data).unwrap_or("(invalid utf8)"));
-
-                        (data.len(), ())
+                        smol_socket_receive(smol_socket_handle, data.as_ptr(), data.len())
+                        (len, ())
                     }).unwrap();
                     //0
                 } else {
