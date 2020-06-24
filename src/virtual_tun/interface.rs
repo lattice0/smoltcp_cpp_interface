@@ -54,12 +54,10 @@ impl<'a, 'b: 'a, 'c: 'a + 'b, 'e> SmolStackType<'a, 'b, 'c, 'e> {
         }
     }
 
-    pub fn add_socket(&mut self, socket_type: SocketType) -> usize {
+    pub fn add_socket(&mut self, socket_type: SocketType, socket_handle: usize) -> usize {
         match self {
-            &mut SmolStackType::VirtualTun(ref mut smol_stack) => {
-                smol_stack.add_socket(socket_type)
-            }
-            &mut SmolStackType::Tun(ref mut smol_stack) => smol_stack.add_socket(socket_type),
+            &mut SmolStackType::VirtualTun(ref mut smol_stack) => smol_stack.add_socket(socket_type, socket_handle)
+            &mut SmolStackType::Tun(ref mut smol_stack) => smol_stack.add_socket(socket_type, socket_handle),
         }
     }
 
@@ -403,8 +401,8 @@ pub extern "C" fn smol_stack_poll(smol_stack: &mut SmolStackType) -> u8 {
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_spin(smol_stack: &mut SmolStackType, rust_handle_key: usize, cpp_handle_key: usize) -> u8 {
-    smol_stack.spin(rust_handle_key, cpp_handle_key)
+pub extern "C" fn smol_stack_spin(smol_stack: &mut SmolStackType, socket_handle: usize) -> u8 {
+    smol_stack.spin(socket_handle)
 }
 
 #[no_mangle]

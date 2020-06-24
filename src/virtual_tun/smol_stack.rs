@@ -60,6 +60,7 @@ impl<'a> Drop for Blob<'a> {
 
 pub struct SmolSocket<'a> {
     pub socket_type: SocketType,
+    //Socket number inside SmolStack
     pub socket_handle: SocketHandle,
     pub packets: Arc<Mutex<VecDeque<Packet<'a>>>>,
     //If we couldn't send entire packet at once, hold it here for next send
@@ -143,27 +144,27 @@ where
         self.current_key
     }
 
-    pub fn add_socket(&mut self, socket_type: SocketType) -> usize {
+    pub fn add_socket(&mut self, socket_type: SocketType, socket_handle: usize) -> u8 {
         match socket_type {
             SocketType::TCP => {
                 let rx_buffer = TcpSocketBuffer::new(vec![0; 1024]);
                 let tx_buffer = TcpSocketBuffer::new(vec![0; 1024]);
                 let socket = TcpSocket::new(rx_buffer, tx_buffer);
                 let handle = self.sockets.add(socket);
-                let handke_key = self.new_socket_handle_key();
+                //let handke_key = self.new_socket_handle_key();
                 let smol_socket = SmolSocket::new(handle, SocketType::TCP);
-                self.smol_sockets.insert(handke_key, smol_socket);
-                handke_key
+                self.smol_sockets.insert(socket_handle, smol_socket);
+                0
             }
             SocketType::UDP => {
                 let rx_buffer = UdpSocketBuffer::new(Vec::new(), vec![0; 1024]);
                 let tx_buffer = UdpSocketBuffer::new(Vec::new(), vec![0; 1024]);
                 let socket = UdpSocket::new(rx_buffer, tx_buffer);
                 let handle = self.sockets.add(socket);
-                let handke_key = self.new_socket_handle_key();
+                //let handke_key = self.new_socket_handle_key();
                 let smol_socket = SmolSocket::new(handle, SocketType::UDP);
-                self.smol_sockets.insert(handke_key, smol_socket);
-                handke_key
+                self.smol_sockets.insert(socket_handle, smol_socket);
+                0
             }
             /*
             SocketType::RAW_IPV4 => {
@@ -306,8 +307,8 @@ where
         }
     }
 
-    pub fn spin(&mut self, rust_handle_key: usize, cpp_handle_key: usize) -> u8 {
-        let smol_socket = self.smol_sockets.get_mut(&rust_handle_key).unwrap();
+    pub fn spin(&mut self, socket_handle: usize) -> u8 {
+        let smol_socket = self.smol_sockets.get_mut(&socket_handle).unwrap();
         //println!("spin");
         match smol_socket.socket_type {
             SocketType::TCP => {
