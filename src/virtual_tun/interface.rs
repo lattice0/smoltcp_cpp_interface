@@ -1,19 +1,19 @@
 extern crate rand;
 
 use super::smol_stack::SmolSocket;
-use super::smol_stack::{SmolStack, SocketType, Packet, Blob};
+use super::smol_stack::{Blob, Packet, SmolStack, SocketType};
 use super::virtual_tun::VirtualTunInterface as VirtualTunDevice;
+use smoltcp::phy::wait as phy_wait;
 use smoltcp::phy::TunInterface as TunDevice;
+use smoltcp::phy::TunInterface;
 use smoltcp::socket::{SocketHandle, TcpSocket};
 use smoltcp::time::Instant;
 use smoltcp::wire::{IpAddress, IpCidr, IpEndpoint, Ipv4Address, Ipv6Address};
-use std::ffi::{CStr, c_void};
+use std::ffi::{c_void, CStr};
 use std::os::raw::{c_char, c_int};
+use std::os::unix::io::AsRawFd;
 use std::slice;
 use std::str::{self};
-use smoltcp::phy::wait as phy_wait;
-use std::os::unix::io::AsRawFd;
-use smoltcp::phy::TunInterface;
 
 pub enum SmolSocketType {
     VirtualTun,
@@ -21,8 +21,8 @@ pub enum SmolSocketType {
 }
 
 /*
-    Proxy that switches the function call to the right 
-    instance based on socket type. Had to do this 
+    Proxy that switches the function call to the right
+    instance based on socket type. Had to do this
     to support different Device types because SmolStack
     is templated on Device, because Interface (which is
     from smoltcp) is templated on Device
@@ -56,8 +56,12 @@ impl<'a, 'b: 'a, 'c: 'a + 'b, 'e> SmolStackType<'a, 'b, 'c, 'e> {
 
     pub fn add_socket(&mut self, socket_type: SocketType, socket_handle: usize) -> u8 {
         match self {
-            &mut SmolStackType::VirtualTun(ref mut smol_stack) => smol_stack.add_socket(socket_type, socket_handle),
-            &mut SmolStackType::Tun(ref mut smol_stack) => smol_stack.add_socket(socket_type, socket_handle),
+            &mut SmolStackType::VirtualTun(ref mut smol_stack) => {
+                smol_stack.add_socket(socket_type, socket_handle)
+            }
+            &mut SmolStackType::Tun(ref mut smol_stack) => {
+                smol_stack.add_socket(socket_type, socket_handle)
+            }
         }
     }
 
@@ -158,12 +162,8 @@ impl<'a, 'b: 'a, 'c: 'a + 'b, 'e> SmolStackType<'a, 'b, 'c, 'e> {
 
     pub fn spin(&mut self, socket_handle: usize) -> u8 {
         match self {
-            &mut SmolStackType::VirtualTun(ref mut smol_stack) => {
-                smol_stack.spin(socket_handle)
-            }
-            &mut SmolStackType::Tun(ref mut smol_stack) => {
-                smol_stack.spin(socket_handle)
-            }
+            &mut SmolStackType::VirtualTun(ref mut smol_stack) => smol_stack.spin(socket_handle),
+            &mut SmolStackType::Tun(ref mut smol_stack) => smol_stack.spin(socket_handle),
         }
     }
 
@@ -172,13 +172,17 @@ impl<'a, 'b: 'a, 'c: 'a + 'b, 'e> SmolStackType<'a, 'b, 'c, 'e> {
             &mut SmolStackType::VirtualTun(ref mut smol_stack) => {
                 //phy_wait(smol_stack.device.unwrap().as_raw_fd(), smol_stack.interface.unwrap().poll_delay(&smol_stack.sockets, timestamp)).expect("wait error")
             }
-            &mut SmolStackType::Tun(ref mut smol_stack) => {
-                phy_wait(smol_stack.device.unwrap().as_raw_fd(), smol_stack.interface.unwrap().poll_delay(&smol_stack.sockets, Instant::from_millis(timestamp))).expect("wait error")
-            }
+            &mut SmolStackType::Tun(ref mut smol_stack) => phy_wait(
+                smol_stack.device.as_mut().unwrap().as_raw_fd(),
+                smol_stack
+                    .interface
+                    .as_mut()
+                    .unwrap()
+                    .poll_delay(&smol_stack.sockets, Instant::from_millis(timestamp)),
+            )
+            .expect("wait error"),
         }
     }
-
-
 }
 
 #[repr(C)]
@@ -328,16 +332,16 @@ pub extern "C" fn smol_stack_smol_socket_send(
     len: usize,
     endpoint: CIpEndpoint,
     pointer_to_owner: *const c_void,
-    pointer_to_destructor: unsafe extern "C" fn(*const c_void) -> u8
+    pointer_to_destructor: unsafe extern "C" fn(*const c_void) -> u8,
 ) -> u8 {
     let smol_socket = smol_stack.get_smol_socket(socket_handle_key);
     let packet_as_slice = unsafe { slice::from_raw_parts(data, len) };
     let packet = Packet {
-        blob: Blob{
-            slice: packet_as_slice, 
+        blob: Blob {
+            slice: packet_as_slice,
             start: 0,
-            pointer_to_owner: pointer_to_owner, 
-            pointer_to_destructor: pointer_to_destructor
+            pointer_to_owner: pointer_to_owner,
+            pointer_to_destructor: pointer_to_destructor,
         },
         endpoint: Into::<Option<IpEndpoint>>::into(endpoint),
     };
@@ -351,12 +355,14 @@ pub extern "C" fn smol_stack_smol_socket_send(
 }
 
 //Just by owning the slice again, it kills it?
-pub extern "C" fn rust_kill_slice_u8(slice: &[u8]) {
-
-}
+pub extern "C" fn rust_kill_slice_u8(slice: &[u8]) {}
 
 #[no_mangle]
-pub extern "C" fn smol_stack_add_socket(smol_stack: &mut SmolStackType, socket_type: u8, socket_handle: usize) -> u8 {
+pub extern "C" fn smol_stack_add_socket(
+    smol_stack: &mut SmolStackType,
+    socket_type: u8,
+    socket_handle: usize,
+) -> u8 {
     match socket_type {
         0 => smol_stack.add_socket(SocketType::TCP, socket_handle),
         1 => smol_stack.add_socket(SocketType::UDP, socket_handle),
@@ -365,7 +371,11 @@ pub extern "C" fn smol_stack_add_socket(smol_stack: &mut SmolStackType, socket_t
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_phy_wait(smol_stack: &mut SmolStackType, socket_type: u8, timestamp: i64) {
+pub extern "C" fn smol_stack_phy_wait(
+    smol_stack: &mut SmolStackType,
+    socket_type: u8,
+    timestamp: i64,
+) {
     match socket_type {
         0 => smol_stack.phy_wait(timestamp),
         1 => smol_stack.phy_wait(timestamp),

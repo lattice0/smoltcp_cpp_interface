@@ -266,7 +266,7 @@ public:
     template <typename T>
     void send(SmolSocket smolSocket, const uint8_t *data, size_t len, CIpEndpoint endpoint, SmolOwner<T> *pointerToSmolOwner, uint8_t (*smolOwnerDestructor)(void *))
     {
-        smol_stack_smol_socket_send(smolSocket.handle, handle, data, len, endpoint, static_cast<void *>(pointerToSmolOwner), smolOwnerDestructor);
+        smol_stack_smol_socket_send(smolStackPtr, smolSocket.handle, data, len, endpoint, static_cast<void *>(pointerToSmolOwner), smolOwnerDestructor);
     }
 
     void connectIpv4(SmolSocket smolSocket, CIpv4Address address, uint8_t src_port, uint8_t dst_port)
