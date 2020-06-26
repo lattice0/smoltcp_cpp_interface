@@ -1,7 +1,8 @@
 //use smoltcp_openvpn_bridge::virtual_tun::VirtualTunInterface;
-use super::interface::{CIpv4Address, CIpv4Cidr, CIpv6Address, CIpv6Cidr};
+use super::interface::{CBuffer, CIpv4Address, CIpv4Cidr, CIpv6Address, CIpv6Cidr};
 use super::virtual_tun::VirtualTunInterface as TunDevice;
 use smoltcp::iface::{Interface, InterfaceBuilder, Routes};
+use smoltcp::phy::wait as phy_wait;
 use smoltcp::phy::{self, Device};
 use smoltcp::socket::{
     AnySocket, RawSocket, RawSocketBuffer, Socket, SocketHandle, SocketRef, SocketSet, TcpSocket,
@@ -16,11 +17,10 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::VecDeque;
+use std::ffi::c_void;
 use std::rc::Rc;
 use std::slice;
-use std::ffi::c_void;
 use std::sync::{Arc, Mutex};
-use smoltcp::phy::wait as phy_wait;
 
 #[derive(PartialEq, Clone)]
 pub enum SocketType {
@@ -29,10 +29,6 @@ pub enum SocketType {
     ICMP,
     TCP,
     UDP,
-}
-
-pub struct Blob2<'a> {
-    pub slice: &'a[u8],
 }
 
 pub struct Blob<'a> {
@@ -45,7 +41,7 @@ pub struct Blob<'a> {
         and deletes it, thus callings its destructor which deletes the owner
         of the data on the slice, which deletes the data on the slice
     */
-    pub pointer_to_destructor: unsafe extern "C" fn(*const c_void) -> u8
+    pub pointer_to_destructor: unsafe extern "C" fn(*const c_void) -> u8,
 }
 
 pub struct Packet<'a> {
@@ -57,7 +53,7 @@ impl<'a> Drop for Blob<'a> {
     fn drop(&mut self) {
         println!("blob drop!");
         let f = self.pointer_to_destructor;
-        let r = unsafe{f(self.pointer_to_owner)};
+        let r = unsafe { f(self.pointer_to_owner) };
         println!("blob drop result: {}", r);
     }
 }
@@ -66,9 +62,10 @@ pub struct SmolSocket<'a> {
     pub socket_type: SocketType,
     //Socket number inside SmolStack
     pub socket_handle: SocketHandle,
-    pub packets: Arc<Mutex<VecDeque<Packet<'a>>>>,
+    pub to_send: Arc<Mutex<VecDeque<Packet<'a>>>>,
     //If we couldn't send entire packet at once, hold it here for next send
-    current: Option<Packet<'a>>,
+    current_to_send: Option<Packet<'a>>,
+    pub received: Arc<Mutex<VecDeque<&'a [u8]>>>,
 }
 
 impl<'a> SmolSocket<'a> {
@@ -76,8 +73,9 @@ impl<'a> SmolSocket<'a> {
         SmolSocket {
             socket_type: socket_type,
             socket_handle: socket_handle,
-            packets: Arc::new(Mutex::new(VecDeque::new())),
-            current: None,
+            to_send: Arc::new(Mutex::new(VecDeque::new())),
+            current_to_send: None,
+            received: Arc::new(Mutex::new(VecDeque::new())),
         }
     }
 
@@ -87,20 +85,35 @@ impl<'a> SmolSocket<'a> {
         {
             panic!("this socket type needs an endpoint to send to");
         }
-        self.packets.lock().unwrap().push_back(packet);
+        self.to_send.lock().unwrap().push_back(packet);
         0
+    }
+
+    //TODO: figure out a better way than copying
+    pub fn receive(&mut self) -> CBuffer {
+        let s: &'a [u8];
+        {
+            //Create a scope so we hold the queue for the least ammount needed
+            //TODO: do I really need to create a scope?
+            s = self.received.lock().unwrap().pop_front().unwrap();
+        }
+        let ss = s.as_mut_ptr();
+        CBuffer {
+            data: ss,
+            len: s.len(),
+        }
     }
 
     pub fn get_latest_packet(&mut self) -> Option<Packet> {
         //If the last step couldn't send the entire blob,
-        //the packet is in `self.current`, so we return it again
+        //the packet is in `self.current_to_send`, so we return it again
         //otherwise we return a fresh packet from the queue
-        match self.current.take() {
+        match self.current_to_send.take() {
             Some(packet) => Some(packet),
             //TODO: verify assertion below
             //lock happens very birefly, so the list is not kept locked much time
             None => {
-                let packet = self.packets.lock().unwrap().pop_front();
+                let packet = self.to_send.lock().unwrap().pop_front();
                 packet
             }
         }
@@ -339,10 +352,10 @@ where
                                 Ok(b) => {
                                     println!("sent {} bytes", b);
                                     //Sent less than entire packet, so we must put this packet
-                                    //in `smol_socket.current` so it's returned the next time
+                                    //in `smol_socket.current_to_send` so it's returned the next time
                                     //so we can continue sending it
                                     if b < packet.blob.slice.len() {
-                                        //smol_socket.current = Some(packet);
+                                        //smol_socket.current_to_send = Some(packet);
                                         //0
                                     } else {
                                         //Sent the entire packet, nothing needs to be done
@@ -351,7 +364,7 @@ where
                                 }
                                 Err(e) => {
                                     println!("bytes not sent, ERROR {}, putting packet back", e);
-                                    //smol_socket.current = Some(packet);
+                                    //smol_socket.current_to_send = Some(packet);
                                     //1
                                 }
                             }
@@ -365,13 +378,16 @@ where
                     //1
                 }
                 if socket.can_recv() {
-                    socket.recv(|data| {
-                        let len = data.len();
-                        //println!("{}", str::from_utf8(data).unwrap_or("(invalid utf8)"));
-                        smol_socket_receive(smol_socket_handle, data.as_ptr(), data.len())
-                        (len, ())
-                    }).unwrap();
-                    //0
+                    socket
+                        .recv(|data| {
+                            let len = data.len();
+                            //println!("{}", str::from_utf8(data).unwrap_or("(invalid utf8)"));
+                            smol_socket.received.lock().unwrap().push_back(data);
+                            //smol_socket.receive(data);
+                            (len, ())
+                        })
+                        .unwrap();
+                //0
                 } else {
                     //2
                 }

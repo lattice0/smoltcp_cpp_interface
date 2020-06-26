@@ -14,6 +14,11 @@ static const int SOCKET_UDP = 1;
 
 using namespace std::chrono;
 
+struct CBuffer {
+    uint8_t* data;
+    size_t len;
+};
+
 class Instant
 {
 public:
@@ -114,6 +119,7 @@ extern "C" void smol_stack_spin(SmolStackPtr, SocketHandle socketHandle);
 extern "C" void smol_stack_tcp_connect_ipv4(SmolStackPtr, SocketHandle socketHandle, CIpv4Address, uint8_t src_port, uint8_t dst_port);
 extern "C" void smol_stack_tcp_connect_ipv6(SmolStackPtr, SocketHandle socketHandle, CIpv6Address, uint8_t src_port, uint8_t dst_port);
 extern "C" uint8_t smol_stack_smol_socket_send(SmolStackPtr, SocketHandle socketHandle, const uint8_t *data, size_t len, CIpEndpoint endpoint, void *, uint8_t (*)(void *));
+extern "C" uint8_t smol_stack_smol_socket_receive(SmolStackPtr, SocketHandle socketHandle, CBuffer* cbuffer);
 extern "C" void smol_stack_add_ipv4_address(SmolStackPtr, CIpv4Cidr);
 extern "C" void smol_stack_add_ipv6_address(SmolStackPtr, CIpv6Cidr);
 extern "C" void smol_stack_add_default_v4_gateway(SmolStackPtr, CIpv4Address);
@@ -236,14 +242,6 @@ public:
         return smolSocket;
     }
 
-    /*
-    size_t addSmolSocket(SmolSocket smolSocket)
-    {
-        size_t handle = getNewHandle();
-        smolSocketHandles[handle] = smolSocket;
-    }
-    */
-
     void poll()
     {
         smol_stack_poll(smolStackPtr);
@@ -267,6 +265,21 @@ public:
     void send(SmolSocket smolSocket, const uint8_t *data, size_t len, CIpEndpoint endpoint, SmolOwner<T> *pointerToSmolOwner, uint8_t (*smolOwnerDestructor)(void *))
     {
         smol_stack_smol_socket_send(smolStackPtr, smolSocket.handle, data, len, endpoint, static_cast<void *>(pointerToSmolOwner), smolOwnerDestructor);
+    }
+
+    uint8_t receive(SmolSocket smolSocket, uint8_t* data, size_t& len)
+    {
+        CBuffer cbuffer;
+        uint8_t r = smol_stack_smol_socket_receive(smolStackPtr, smolSocket.handle, &cbuffer);
+        if (r==0) {
+            //TODO: avoid copy
+            std::copy(cbuffer.data, cbuffer.data + len, data);
+            len = cbuffer.len;
+            return 0;
+        } else {
+            return r;
+        }
+
     }
 
     void connectIpv4(SmolSocket smolSocket, CIpv4Address address, uint8_t src_port, uint8_t dst_port)

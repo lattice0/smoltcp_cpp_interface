@@ -20,6 +20,12 @@ pub enum SmolSocketType {
     Tun,
 }
 
+#[repr(C)]
+pub struct CBuffer {
+    data: *mut u8,
+    len: usize,
+}
+
 /*
     Proxy that switches the function call to the right
     instance based on socket type. Had to do this
@@ -346,8 +352,24 @@ pub extern "C" fn smol_stack_smol_socket_send(
         endpoint: Into::<Option<IpEndpoint>>::into(endpoint),
     };
     match smol_socket {
-        Some(smol_socket_) => {
-            smol_socket_.send(packet);
+        Some(smol_socket) => {
+            smol_socket.send(packet);
+            0
+        }
+        None => 1,
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn smol_stack_smol_socket_receive(
+    smol_stack: &mut SmolStackType,
+    socket_handle_key: usize,
+    cbuffer: *const CBuffer
+) -> u8 {
+    let smol_socket = smol_stack.get_smol_socket(socket_handle_key);
+    match smol_socket {
+        Some(smol_socket) => {
+            *cbuffer = smol_socket.receive();
             0
         }
         None => 1,
