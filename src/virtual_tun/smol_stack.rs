@@ -120,13 +120,13 @@ impl<'a> SmolSocket<'a> {
     }
 }
 
-pub struct SmolStack<'a, 'b: 'a, 'c: 'a + 'b, 'e, DeviceT>
+pub struct SmolStack<'a, 'b: 'a, 'c: 'a + 'b, DeviceT>
 where
     DeviceT: for<'d> Device<'d>,
 {
     pub sockets: SocketSet<'a, 'b, 'c>,
     current_key: usize,
-    smol_sockets: HashMap<usize, SmolSocket<'e>>,
+    smol_sockets: HashMap<usize, SmolSocket<'a>>,
     pub device: Option<DeviceT>,
     ip_addrs: Option<std::vec::Vec<IpCidr>>,
     default_v4_gw: Option<Ipv4Address>,
@@ -134,11 +134,11 @@ where
     pub interface: Option<Interface<'a, 'b, 'c, DeviceT>>,
 }
 
-impl<'a, 'b: 'a, 'c: 'a + 'b, 'e, DeviceT> SmolStack<'a, 'b, 'c, 'e, DeviceT>
+impl<'a, 'b: 'a, 'c: 'a + 'b, DeviceT> SmolStack<'a, 'b, 'c, DeviceT>
 where
     DeviceT: for<'d> Device<'d>,
 {
-    pub fn new(interface_name: String, device: DeviceT) -> SmolStack<'a, 'b, 'c, 'e, DeviceT> {
+    pub fn new(interface_name: String, device: DeviceT) -> SmolStack<'a, 'b, 'c, DeviceT> {
         let socket_set = SocketSet::new(vec![]);
         let ip_addrs = std::vec::Vec::new();
 
@@ -205,7 +205,7 @@ where
         }
     }
 
-    pub fn get_smol_socket(&mut self, smol_socket_handle: usize) -> Option<&mut SmolSocket<'e>> {
+    pub fn get_smol_socket(&mut self, smol_socket_handle: usize) -> Option<&mut SmolSocket<'a>> {
         let smol_socket = self.smol_sockets.get_mut(&smol_socket_handle);
         smol_socket
     }
@@ -348,6 +348,7 @@ where
                                 println!("{}", s);
                             }
                             let bytes_sent = socket.send_slice(packet.blob.slice);
+                            
                             match bytes_sent {
                                 Ok(b) => {
                                     println!("sent {} bytes", b);
