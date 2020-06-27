@@ -52,10 +52,10 @@ pub struct Packet<'a> {
 
 impl<'a> Drop for Blob<'a> {
     fn drop(&mut self) {
-        println!("blob drop!");
+        //println!("blob drop!");
         let f = self.pointer_to_destructor;
         let r = unsafe { f(self.pointer_to_owner) };
-        println!("blob drop result: {}", r);
+        //println!("blob drop result: {}", r);
     }
 }
 

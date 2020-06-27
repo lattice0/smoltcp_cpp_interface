@@ -11,7 +11,7 @@ using namespace smoltcp;
 
 extern "C" uint8_t destruct(void *smolOwner_)
 {
-    std::cout << "smol owner destruct called" << std::endl;
+    //std::cout << "smol owner destruct called" << std::endl;
     SmolOwner<std::string> *smolOwner = static_cast<SmolOwner<std::string> *>(smolOwner_);
     delete smolOwner;
     return 0;
@@ -95,7 +95,7 @@ int main()
                 }
             }
             tunSmolStack.spin(smolSocket);
-            tunSmolStack.phy_wait(tunSmolStack.currentTimeMillis());
+            //tunSmolStack.phy_wait(tunSmolStack.currentTimeMillis());
         }
     }
     else
