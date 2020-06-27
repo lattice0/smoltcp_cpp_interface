@@ -1,4 +1,4 @@
 cargo build
-clang++ -shared -fPIC -o libsmoltcp_openvpn_bridge.so -L target/debug/ src/virtual_tun/interface.cpp -lstdc++ -lsmoltcp_openvpn_bridge_rust -pthread -ldl
-clang++ -o smoltcp_example -L . lib_smol_tcp/*.cpp -L target/debug/ -I src/virtual_tun -lsmoltcp_openvpn_bridge -lsmoltcp_openvpn_bridge_rust
+clang++ -shared -fPIC -o libsmoltcp_cpp_interface_cpp.so -L target/debug/ src/virtual_tun/interface.cpp -lstdc++ -lsmoltcp_cpp_interface_rust -pthread -ldl
+clang++ -o smoltcp_httpclient_example -L . lib_smol_tcp/*.cpp -L target/debug/ -I src/virtual_tun -lsmoltcp_cpp_interface_cpp -lsmoltcp_cpp_interface_rust
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD:$PWD/target/debug

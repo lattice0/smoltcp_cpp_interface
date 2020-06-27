@@ -1,5 +1,5 @@
 [package]
-name = "smoltcp_openvpn_bridge_rust"
+name = "smoltcp_cpp_interface_rust"
 version = "0.1.0"
 authors = ["lz <me@lucaszanella.com>"]
 edition = "2018"
