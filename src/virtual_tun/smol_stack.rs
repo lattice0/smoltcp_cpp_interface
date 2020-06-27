@@ -343,7 +343,6 @@ where
 
     pub fn spin(&mut self, smol_socket_handle: usize) -> u8 {
         let smol_socket = self.smol_sockets.get_mut(&smol_socket_handle).unwrap();
-        //println!("spin");
         match smol_socket.socket_type {
             SocketType::TCP => {
                 let mut socket = self.sockets.get::<TcpSocket>(smol_socket.socket_handle);
@@ -373,6 +372,8 @@ where
                                     //in `smol_socket.current_to_send` so it's returned the next time
                                     //so we can continue sending it
                                     if b < packet.blob.slice.len() {
+                                        panic!("TOO BIG!");
+                                        //BIG TODO: put it back in case its not possible to send everything!!!!!
                                         //smol_socket.current_to_send = Some(packet);
                                         //0
                                     } else {

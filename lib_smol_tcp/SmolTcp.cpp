@@ -74,7 +74,6 @@ int main()
             }
             if (state == State::Request)
             {
-                //std::this_thread::sleep_for(std::chrono::milliseconds(10000));
                 std::string httpRequestData("GET /index.html HTTP/1.1\r\nHost: www.google.com\r\nConnection: Keep-Alive\r\n\r\n");
                 std::string *s = new std::string(httpRequestData);
                 auto smolOwner = SmolOwner<std::string>::allocate(s);
@@ -88,15 +87,15 @@ int main()
                 if (!buffer.empty)
                 {
                     //std::cout << std::string(buffer.cBuffer.data, buffer.cBuffer.len) << std::endl;
-                    fwrite(buffer.cBuffer.data, 1, buffer.cBuffer.len, stdout);
+                    //fwrite(buffer.cBuffer.data, 1, buffer.cBuffer.len, stdout);
+                    std::cout << "received " << buffer.cBuffer.len << " bytes" << std::endl; 
                 }
                 else
                 {
                 }
             }
             tunSmolStack.spin(smolSocket);
-            //tunSmolStack.poll();
-            //std::this_thread::sleep_for(std::chrono::milliseconds(10000));
+            tunSmolStack.phy_wait(tunSmolStack.currentTimeMillis());
         }
     }
     else

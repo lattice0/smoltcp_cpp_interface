@@ -140,6 +140,7 @@ namespace smoltcp
     extern "C" SmolStackPtr smol_stack_smol_stack_new_tun(const char *interfaceName);
     extern "C" uint8_t smol_stack_add_socket(SmolStackPtr, uint8_t socketType, SocketHandle socketHandle);
     extern "C" void smol_stack_poll(SmolStackPtr);
+    extern "C" void smol_stack_phy_wait(SmolStackPtr, int64_t timestamp);
     extern "C" void smol_stack_spin(SmolStackPtr, SocketHandle socketHandle);
     extern "C" void smol_stack_tcp_connect_ipv4(SmolStackPtr, SocketHandle socketHandle, CIpv4Address, uint8_t src_port, uint8_t dst_port);
     extern "C" void smol_stack_tcp_connect_ipv6(SmolStackPtr, SocketHandle socketHandle, CIpv6Address, uint8_t src_port, uint8_t dst_port);
@@ -342,6 +343,14 @@ namespace smoltcp
         void addDefaultV6Gateway(CIpv6Address address)
         {
             smol_stack_add_default_v6_gateway(smolStackPtr, address);
+        }
+
+        void phy_wait(int64_t timestamp) {
+            smol_stack_phy_wait(smolStackPtr, timestamp);
+        }
+
+        int64_t currentTimeMillis() {
+            return Instant::now().count();
         }
 
         uint8_t finalize()

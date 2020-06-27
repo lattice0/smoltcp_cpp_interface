@@ -395,14 +395,9 @@ pub extern "C" fn smol_stack_add_socket(
 #[no_mangle]
 pub extern "C" fn smol_stack_phy_wait(
     smol_stack: &mut SmolStackType,
-    socket_type: u8,
     timestamp: i64,
 ) {
-    match socket_type {
-        0 => smol_stack.phy_wait(timestamp),
-        1 => smol_stack.phy_wait(timestamp),
-        _ => panic!("wrong type"),
-    }
+    smol_stack.phy_wait(timestamp)
 }
 
 #[no_mangle]
