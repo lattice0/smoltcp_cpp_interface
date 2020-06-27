@@ -185,11 +185,10 @@ where
     pub fn add_socket(&mut self, socket_type: SocketType, smol_socket_handle: usize) -> u8 {
         match socket_type {
             SocketType::TCP => {
-                let rx_buffer = TcpSocketBuffer::new(vec![0; 1024]);
-                let tx_buffer = TcpSocketBuffer::new(vec![0; 1024]);
+                let rx_buffer = TcpSocketBuffer::new(vec![0; 65000]);
+                let tx_buffer = TcpSocketBuffer::new(vec![0; 65000]);
                 let socket = TcpSocket::new(rx_buffer, tx_buffer);
                 let handle = self.sockets.add(socket);
-                //let handke_key = self.new_socket_handle_key();
                 let smol_socket = SmolSocket::new(handle, SocketType::TCP);
                 self.smol_sockets.insert(smol_socket_handle, smol_socket);
                 0
@@ -199,7 +198,6 @@ where
                 let tx_buffer = UdpSocketBuffer::new(Vec::new(), vec![0; 1024]);
                 let socket = UdpSocket::new(rx_buffer, tx_buffer);
                 let handle = self.sockets.add(socket);
-                //let handke_key = self.new_socket_handle_key();
                 let smol_socket = SmolSocket::new(handle, SocketType::UDP);
                 self.smol_sockets.insert(smol_socket_handle, smol_socket);
                 0
@@ -352,15 +350,7 @@ where
                 let mut socket = self.sockets.get::<TcpSocket>(smol_socket.socket_handle);
                 if socket.may_send() {
                     let packet = smol_socket.get_latest_packet();
-                    /*
-                    let bytes_sent = socket.send_slice(packet.unwrap().slice);
-                    match bytes_sent {
-                        Ok(_) => 0,
-                        Err(e) => 1,
-                    }
-                    */
-
-                    //let packet = Some(Packet{endpoint: None, slice: &[], socket_type: SocketType::ICMP});
+                   
                     match packet {
                         Some(packet) => {
                             println!("some packet");

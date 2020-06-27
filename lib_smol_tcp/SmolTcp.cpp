@@ -87,15 +87,15 @@ int main()
                 if (!buffer.empty)
                 {
                     //std::cout << std::string(buffer.cBuffer.data, buffer.cBuffer.len) << std::endl;
-                    //fwrite(buffer.cBuffer.data, 1, buffer.cBuffer.len, stdout);
-                    std::cout << "received " << buffer.cBuffer.len << " bytes" << std::endl; 
+                    fwrite(buffer.cBuffer.data, 1, buffer.cBuffer.len, stdout);
+                    //std::cout << "received " << buffer.cBuffer.len << " bytes" << std::endl; 
                 }
                 else
                 {
                 }
             }
             tunSmolStack.spin(smolSocket);
-            //tunSmolStack.phy_wait(tunSmolStack.currentTimeMillis());
+            tunSmolStack.phy_wait(tunSmolStack.currentTimeMillis());
         }
     }
     else
