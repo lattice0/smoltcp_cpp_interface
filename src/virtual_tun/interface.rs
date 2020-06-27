@@ -41,13 +41,14 @@ pub enum SmolStackType<'a, 'b: 'a, 'c: 'a + 'b> {
 impl<'a, 'b: 'a, 'c: 'a + 'b> SmolStackType<'a, 'b, 'c> {
     pub fn new_virtual_tun(interface_name: String) -> Box<SmolStackType<'a, 'b, 'c>> {
         let device = VirtualTunDevice::new(interface_name.as_str()).unwrap();
-        let smol_stack = SmolStack::new(interface_name, device);
+        let smol_stack = SmolStack::new(device, None);
         Box::new(SmolStackType::VirtualTun(smol_stack))
     }
 
     pub fn new_tun(interface_name: String) -> Box<SmolStackType<'a, 'b, 'c>> {
         let device = TunDevice::new(interface_name.as_str()).unwrap();
-        let smol_stack = SmolStack::new(interface_name, device);
+        let fd = Some(device.as_raw_fd());
+        let smol_stack = SmolStack::new(device, fd);
         Box::new(SmolStackType::Tun(smol_stack))
     }
 
@@ -179,7 +180,7 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> SmolStackType<'a, 'b, 'c> {
                 //phy_wait(smol_stack.device.unwrap().as_raw_fd(), smol_stack.interface.unwrap().poll_delay(&smol_stack.sockets, timestamp)).expect("wait error")
             }
             &mut SmolStackType::Tun(ref mut smol_stack) => phy_wait(
-                smol_stack.device.as_mut().unwrap().as_raw_fd(),
+                smol_stack.fd.unwrap(),
                 smol_stack
                     .interface
                     .as_mut()

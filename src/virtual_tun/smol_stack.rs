@@ -4,6 +4,8 @@ use super::virtual_tun::VirtualTunInterface as TunDevice;
 use smoltcp::iface::{Interface, InterfaceBuilder, Routes};
 use smoltcp::phy::wait as phy_wait;
 use smoltcp::phy::{self, Device};
+use std::os::unix::io::AsRawFd;
+
 use smoltcp::socket::{
     AnySocket, RawSocket, RawSocketBuffer, Socket, SocketHandle, SocketRef, SocketSet, TcpSocket,
     TcpSocketBuffer, UdpSocket, UdpSocketBuffer,
@@ -144,6 +146,7 @@ where
 {
     pub sockets: SocketSet<'a, 'b, 'c>,
     current_key: usize,
+    pub fd: Option<i32>,
     smol_sockets: HashMap<usize, SmolSocket<'a>>,
     pub device: Option<DeviceT>,
     ip_addrs: Option<std::vec::Vec<IpCidr>>,
@@ -156,13 +159,14 @@ impl<'a, 'b: 'a, 'c: 'a + 'b, DeviceT> SmolStack<'a, 'b, 'c, DeviceT>
 where
     DeviceT: for<'d> Device<'d>,
 {
-    pub fn new(interface_name: String, device: DeviceT) -> SmolStack<'a, 'b, 'c, DeviceT> {
+    pub fn new(device: DeviceT, fd: Option<i32>) -> SmolStack<'a, 'b, 'c, DeviceT> {
         let socket_set = SocketSet::new(vec![]);
         let ip_addrs = std::vec::Vec::new();
 
         SmolStack {
             sockets: socket_set,
             current_key: 0,
+            fd: fd,
             smol_sockets: HashMap::new(),
             device: Some(device),
             ip_addrs: Some(ip_addrs),
