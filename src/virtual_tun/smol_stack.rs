@@ -18,6 +18,7 @@ use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::ffi::c_void;
+use std::ptr;
 use std::rc::Rc;
 use std::slice;
 use std::sync::{Arc, Mutex};
@@ -65,7 +66,7 @@ pub struct SmolSocket<'a> {
     pub to_send: Arc<Mutex<VecDeque<Packet<'a>>>>,
     //If we couldn't send entire packet at once, hold it here for next send
     current_to_send: Option<Packet<'a>>,
-    pub received: Arc<Mutex<VecDeque<&'a [u8]>>>,
+    pub received: Arc<Mutex<VecDeque<Vec<u8>>>>,
 }
 
 impl<'a> SmolSocket<'a> {
@@ -89,18 +90,35 @@ impl<'a> SmolSocket<'a> {
         0
     }
 
-    //TODO: figure out a better way than copying
-    pub fn receive(&mut self) -> CBuffer {
-        let s: &'a [u8];
+    /*
+        TODO: figure out a better way than copying. Inneficient receive
+    */
+    pub fn receive(
+        &mut self,
+        cbuffer: *mut CBuffer,
+        allocate_function: extern "C" fn(size: usize) -> *mut u8,
+    ) -> u8 {
+        let s;
         {
             //Create a scope so we hold the queue for the least ammount needed
             //TODO: do I really need to create a scope?
-            s = self.received.lock().unwrap().pop_front().unwrap();
+            s = self.received.lock().unwrap().pop_front()
         }
-        let ss = s.as_mut_ptr();
-        CBuffer {
-            data: ss,
-            len: s.len(),
+        match s {
+            Some(s) => {
+                let p: *mut u8 = allocate_function(s.len());
+                unsafe { ptr::copy(s.as_ptr(), p, s.len()) };
+                //let ss = s.
+                //this is wrong, fix it
+                unsafe {
+                    *cbuffer = CBuffer {
+                        data: p,
+                        len: s.len(),
+                    };
+                }
+                0
+            }
+            None=> 1
         }
     }
 
@@ -348,7 +366,6 @@ where
                                 println!("{}", s);
                             }
                             let bytes_sent = socket.send_slice(packet.blob.slice);
-                            
                             match bytes_sent {
                                 Ok(b) => {
                                     println!("sent {} bytes", b);
@@ -383,7 +400,11 @@ where
                         .recv(|data| {
                             let len = data.len();
                             //println!("{}", str::from_utf8(data).unwrap_or("(invalid utf8)"));
-                            smol_socket.received.lock().unwrap().push_back(data);
+                            {
+                                let mut s = vec![0; len];
+                                s.copy_from_slice(data);
+                                smol_socket.received.lock().unwrap().push_back(s);
+                            }
                             //smol_socket.receive(data);
                             (len, ())
                         })

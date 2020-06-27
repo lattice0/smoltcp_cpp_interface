@@ -22,8 +22,8 @@ pub enum SmolSocketType {
 
 #[repr(C)]
 pub struct CBuffer {
-    data: *mut u8,
-    len: usize,
+    pub data: *mut u8,
+    pub len: usize,
 }
 
 /*
@@ -364,13 +364,13 @@ pub extern "C" fn smol_stack_smol_socket_send(
 pub extern "C" fn smol_stack_smol_socket_receive(
     smol_stack: &mut SmolStackType,
     socket_handle_key: usize,
-    cbuffer: *const CBuffer
+    cbuffer: *mut CBuffer, 
+    allocate_function: extern "C" fn (size: usize) -> *mut u8
 ) -> u8 {
     let smol_socket = smol_stack.get_smol_socket(socket_handle_key);
     match smol_socket {
         Some(smol_socket) => {
-            *cbuffer = smol_socket.receive();
-            0
+            smol_socket.receive(cbuffer, allocate_function)
         }
         None => 1,
     }

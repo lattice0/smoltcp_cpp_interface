@@ -7,6 +7,8 @@
     Destructor for us to pass to smol socket send function
     Is destructs SmolOwner functions
 */
+using namespace smoltcp;
+
 extern "C" uint8_t destruct(void *smolOwner_)
 {
     std::cout << "smol owner destruct called" << std::endl;
@@ -72,9 +74,9 @@ int main()
             }
             if (state == State::Request)
             {
-                std::this_thread::sleep_for(std::chrono::milliseconds(10000));
+                //std::this_thread::sleep_for(std::chrono::milliseconds(10000));
                 std::string httpRequestData("GET /index.html HTTP/1.1\r\nHost: www.google.com\r\nConnection: Keep-Alive\r\n\r\n");
-                std::string* s = new std::string(httpRequestData);
+                std::string *s = new std::string(httpRequestData);
                 auto smolOwner = SmolOwner<std::string>::allocate(s);
                 const uint8_t *httpRequestDataBuffer = reinterpret_cast<const uint8_t *>(s->c_str());
                 tunSmolStack.send(smolSocket, httpRequestDataBuffer, httpRequestData.size(), endpointNone, smolOwner, destruct);
@@ -82,6 +84,15 @@ int main()
             }
             if (state == State::Response)
             {
+                Buffer buffer = tunSmolStack.receive(smolSocket);
+                if (!buffer.empty)
+                {
+                    //std::cout << std::string(buffer.cBuffer.data, buffer.cBuffer.len) << std::endl;
+                    fwrite(buffer.cBuffer.data, 1, buffer.cBuffer.len, stdout);
+                }
+                else
+                {
+                }
             }
             tunSmolStack.spin(smolSocket);
             //tunSmolStack.poll();
