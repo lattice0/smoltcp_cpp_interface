@@ -9,11 +9,13 @@ use smoltcp::phy::TunInterface;
 use smoltcp::socket::{SocketHandle, TcpSocket};
 use smoltcp::time::Instant;
 use smoltcp::wire::{IpAddress, IpCidr, IpEndpoint, Ipv4Address, Ipv6Address};
+use std::collections::VecDeque;
 use std::ffi::{c_void, CStr};
 use std::os::raw::{c_char, c_int};
 use std::os::unix::io::AsRawFd;
 use std::slice;
 use std::str::{self};
+use std::sync::{Arc, Mutex};
 
 pub enum SmolSocketType {
     VirtualTun,
@@ -34,21 +36,34 @@ pub struct CBuffer {
     from smoltcp) is templated on Device
 */
 pub enum SmolStackType<'a, 'b: 'a, 'c: 'a + 'b> {
-    VirtualTun(SmolStack<'a, 'b, 'c, VirtualTunDevice>),
+    VirtualTun(SmolStack<'a, 'b, 'c, VirtualTunDevice<'a>>),
     Tun(SmolStack<'a, 'b, 'c, TunDevice>),
 }
 
 impl<'a, 'b: 'a, 'c: 'a + 'b> SmolStackType<'a, 'b, 'c> {
     pub fn new_virtual_tun(interface_name: String) -> Box<SmolStackType<'a, 'b, 'c>> {
-        let device = VirtualTunDevice::new(interface_name.as_str()).unwrap();
-        let smol_stack = SmolStack::new(device, None);
+        let packets_from_inside = Arc::new(Mutex::new(VecDeque::new()));
+        let packets_from_outside = Arc::new(Mutex::new(VecDeque::new()));
+
+        let device = VirtualTunDevice::new(
+            interface_name.as_str(),
+            packets_from_inside.clone(),
+            packets_from_outside.clone(),
+        )
+        .unwrap();
+        let smol_stack = SmolStack::new(
+            device,
+            None,
+            Some(packets_from_inside.clone()),
+            Some(packets_from_outside.clone()),
+        );
         Box::new(SmolStackType::VirtualTun(smol_stack))
     }
 
     pub fn new_tun(interface_name: String) -> Box<SmolStackType<'a, 'b, 'c>> {
         let device = TunDevice::new(interface_name.as_str()).unwrap();
         let fd = Some(device.as_raw_fd());
-        let smol_stack = SmolStack::new(device, fd);
+        let smol_stack = SmolStack::new(device, fd, None, None);
         Box::new(SmolStackType::Tun(smol_stack))
     }
 
@@ -312,7 +327,7 @@ pub struct CIpv6Cidr {
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_smol_stack_new_virtual_tun<'a, 'b: 'a, 'c: 'a + 'b, 'e>(
+pub extern "C" fn smol_stack_smol_stack_new_virtual_tun<'a, 'b: 'a, 'c: 'a + 'b>(
     interface_name: *const c_char,
 ) -> Box<SmolStackType<'a, 'b, 'c>> {
     let interface_name_c_str: &CStr = unsafe { CStr::from_ptr(interface_name) };
@@ -365,14 +380,12 @@ pub extern "C" fn smol_stack_smol_socket_send(
 pub extern "C" fn smol_stack_smol_socket_receive(
     smol_stack: &mut SmolStackType,
     socket_handle_key: usize,
-    cbuffer: *mut CBuffer, 
-    allocate_function: extern "C" fn (size: usize) -> *mut u8
+    cbuffer: *mut CBuffer,
+    allocate_function: extern "C" fn(size: usize) -> *mut u8,
 ) -> u8 {
     let smol_socket = smol_stack.get_smol_socket(socket_handle_key);
     match smol_socket {
-        Some(smol_socket) => {
-            smol_socket.receive(cbuffer, allocate_function)
-        }
+        Some(smol_socket) => smol_socket.receive(cbuffer, allocate_function),
         None => 1,
     }
 }
@@ -394,10 +407,7 @@ pub extern "C" fn smol_stack_add_socket(
 }
 
 #[no_mangle]
-pub extern "C" fn smol_stack_phy_wait(
-    smol_stack: &mut SmolStackType,
-    timestamp: i64,
-) {
+pub extern "C" fn smol_stack_phy_wait(smol_stack: &mut SmolStackType, timestamp: i64) {
     smol_stack.phy_wait(timestamp)
 }
 

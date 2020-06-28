@@ -120,7 +120,7 @@ impl<'a> SmolSocket<'a> {
                 }
                 0
             }
-            None=> 1
+            None => 1,
         }
     }
 
@@ -144,6 +144,10 @@ pub struct SmolStack<'a, 'b: 'a, 'c: 'a + 'b, DeviceT>
 where
     DeviceT: for<'d> Device<'d>,
 {
+    /*
+        'b and 'c are lifetimes for the internal buffers
+        for the socket. 'a is the lifetime of the socket itself
+    */
     pub sockets: SocketSet<'a, 'b, 'c>,
     current_key: usize,
     pub fd: Option<i32>,
@@ -153,13 +157,23 @@ where
     default_v4_gw: Option<Ipv4Address>,
     default_v6_gw: Option<Ipv6Address>,
     pub interface: Option<Interface<'a, 'b, 'c, DeviceT>>,
+    //For TunInterface only. Couldn't think of a way to
+    //create a specialized SmolStack for this case only
+    packets_from_inside: Option<Arc<Mutex<VecDeque<Vec<u8>>>>>,
+    //Since the socket is gonna use the Blob, it's lifetime is the lifetime of the socket
+    packets_from_outside: Option<Arc<Mutex<VecDeque<Blob<'a>>>>>,
 }
 
 impl<'a, 'b: 'a, 'c: 'a + 'b, DeviceT> SmolStack<'a, 'b, 'c, DeviceT>
 where
     DeviceT: for<'d> Device<'d>,
 {
-    pub fn new(device: DeviceT, fd: Option<i32>) -> SmolStack<'a, 'b, 'c, DeviceT> {
+    pub fn new(
+        device: DeviceT,
+        fd: Option<i32>,
+        packets_from_inside: Option<Arc<Mutex<VecDeque<Vec<u8>>>>>,
+        packets_from_outside: Option<Arc<Mutex<VecDeque<Blob<'a>>>>>,
+    ) -> SmolStack<'a, 'b, 'c, DeviceT> {
         let socket_set = SocketSet::new(vec![]);
         let ip_addrs = std::vec::Vec::new();
 
@@ -173,6 +187,8 @@ where
             default_v4_gw: None,
             default_v6_gw: None,
             interface: None,
+            packets_from_inside: packets_from_inside,
+            packets_from_outside: packets_from_outside,
         }
     }
 
@@ -350,7 +366,6 @@ where
                 let mut socket = self.sockets.get::<TcpSocket>(smol_socket.socket_handle);
                 if socket.may_send() {
                     let packet = smol_socket.get_latest_packet();
-                   
                     match packet {
                         Some(packet) => {
                             println!("some packet");
@@ -358,6 +373,7 @@ where
                             if let Ok(s) = str::from_utf8(packet.blob.slice) {
                                 println!("{}", s);
                             }
+                            //BIG TODO: send from start of packet wherever it is
                             let bytes_sent = socket.send_slice(packet.blob.slice);
                             match bytes_sent {
                                 Ok(b) => {
@@ -366,10 +382,12 @@ where
                                     //in `smol_socket.current_to_send` so it's returned the next time
                                     //so we can continue sending it
                                     if b < packet.blob.slice.len() {
+                                        smol_socket.current_to_send = Some(packet);
                                         panic!("TOO BIG!");
                                         //BIG TODO: put it back in case its not possible to send everything!!!!!
-                                        //smol_socket.current_to_send = Some(packet);
-                                        //0
+                                        //BIG TODO: account here FOR HOW MUCH HAVE BEEN READ
+
+                                    //0
                                     } else {
                                         //Sent the entire packet, nothing needs to be done
                                         //0
@@ -426,4 +444,65 @@ where
             SocketType::RAW_IPV6 => 0,
         }
     }
+
+    pub fn send(&mut self, packet: Packet<'a>) -> u8 {
+        if !packet.endpoint.is_none() {
+            //panic?
+        }
+        //self.to_send.lock().unwrap().push_back(packet);
+        0
+    }
+
+    /*
+        TODO: figure out a better way than copying. Inneficient receive
+    */
+    pub fn receive(
+        &mut self,
+        cbuffer: *mut CBuffer,
+        allocate_function: extern "C" fn(size: usize) -> *mut u8,
+    ) -> u8 {
+        let s;
+        {
+            //Create a scope so we hold the queue for the least ammount needed
+            //TODO: do I really need to create a scope?
+            s = self
+                .packets_from_inside
+                .unwrap()
+                .lock()
+                .unwrap()
+                .pop_front()
+        }
+        match s {
+            Some(s) => {
+                let p: *mut u8 = allocate_function(s.len());
+                unsafe { ptr::copy(s.as_ptr(), p, s.len()) };
+                //let ss = s.
+                //this is wrong, fix it
+                unsafe {
+                    *cbuffer = CBuffer {
+                        data: p,
+                        len: s.len(),
+                    };
+                }
+                0
+            }
+            None => 1,
+        }
+    }
+    /*
+    pub fn get_latest_packet(&mut self) -> Option<Packet> {
+        //If the last step couldn't send the entire blob,
+        //the packet is in `self.current_to_send`, so we return it again
+        //otherwise we return a fresh packet from the queue
+        match self.pack.take() {
+            Some(packet) => Some(packet),
+            //TODO: verify assertion below
+            //lock happens very birefly, so the list is not kept locked much time
+            None => {
+                let packet = self.to_send.lock().unwrap().pop_front();
+                packet
+            }
+        }
+    }
+    */
 }
