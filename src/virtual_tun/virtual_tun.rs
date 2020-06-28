@@ -126,9 +126,9 @@ impl<'a> VirtualTunInterface<'a> {
     }
 }
 
-impl<'d> Device<'d> for VirtualTunInterface<'d> {
+impl<'a: 'd, 'd> Device<'d> for VirtualTunInterface<'a> {
     type RxToken = RxToken;
-    type TxToken = TxToken<'d>;
+    type TxToken = TxToken<'a>;
 
     fn capabilities(&self) -> DeviceCapabilities {
         let mut d = DeviceCapabilities::default();
