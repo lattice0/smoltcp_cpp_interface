@@ -18,61 +18,19 @@ use std::ops::Deref;
 use std::slice; //, DerefMut };
 
 
-struct CBuffer {
-    ptr: *const u8,
-    len: usize,
-}
-
-impl CBuffer {
-    /// Transfers ownership of `ptr`.
-    pub unsafe fn from_owning(ptr: *const u8, len: usize) -> Option<Self> {
-        if ptr.is_null() || len > isize::MAX as usize {
-            // slices are not allowed to be backed by a null pointer
-            // or be longer than `isize::MAX`. Alignment is irrelevant for `u8`.
-            None
-        } else {
-            Some(CBuffer { ptr, len })
-        }
-    }
-}
-
-impl Drop for CBuffer {
-    fn drop(&mut self) {
-        //unsafe {
-        //cppDelete(self.ptr);
-        //}
-    }
-}
-
-impl Deref for CBuffer {
-    type Target = [u8];
-
-    fn deref(&self) -> &Self::Target {
-        unsafe { slice::from_raw_parts(self.ptr as *const u8, self.len) }
-    }
-}
-/*
-impl DerefMut for CBuffer {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe {
-            slice::from_raw_parts(self.ptr, self.len)
-        }
-    }
-}
-*/
 /// A virtual TUN interface.
 //#[derive(Debug)]
 #[derive(Clone)]
-pub struct VirtualTunInterface<'a> {
+pub struct VirtualTunInterface {
     //lower:  Rc<RefCell<sys::VirtualTunInterfaceDesc>>,
     //put lower with transmit capabilities here? I think no lower is needed, only internally used
     //lower:
     mtu: usize,
     packets_from_inside: Arc<Mutex<VecDeque<Vec<u8>>>>,
-    packets_from_outside: Arc<Mutex<VecDeque<Blob<'a>>>>,
+    packets_from_outside: Arc<Mutex<VecDeque<Blob>>>,
 }
 
-impl<'a> VirtualTunInterface<'a> {
+impl<'a> VirtualTunInterface {
     /// Attaches to a TAP interface called `name`, or creates it if it does not exist.
     ///
     /// If `name` is a persistent interface configured with UID of the current user,
@@ -81,8 +39,8 @@ impl<'a> VirtualTunInterface<'a> {
     pub fn new(
         _name: &str,
         packets_from_inside: Arc<Mutex<VecDeque<Vec<u8>>>>,
-        packets_from_outside: Arc<Mutex<VecDeque<Blob<'a>>>>,
-    ) -> Result<VirtualTunInterface<'a>> {
+        packets_from_outside: Arc<Mutex<VecDeque<Blob>>>,
+    ) -> Result<VirtualTunInterface> {
         /*
         //let mut lower = sys::VirtualTunInterfaceDesc::new(name)?;
         //lower.attach_interface()?;
@@ -118,17 +76,17 @@ impl<'a> VirtualTunInterface<'a> {
                     *dst = *src
                 }
                 */
-                buffer.copy_from_slice(packet.slice);
-                Ok(packet.slice.len())
+                buffer.copy_from_slice(packet.data.as_slice());
+                Ok(packet.data.len())
             }
             None => Err(1),
         }
     }
 }
 
-impl<'a: 'd, 'd> Device<'d> for VirtualTunInterface<'a> {
+impl<'d> Device<'d> for VirtualTunInterface {
     type RxToken = RxToken;
-    type TxToken = TxToken<'a>;
+    type TxToken = TxToken;
 
     fn capabilities(&self) -> DeviceCapabilities {
         let mut d = DeviceCapabilities::default();
@@ -178,16 +136,16 @@ impl phy::RxToken for RxToken {
 }
 
 #[doc(hidden)]
-pub struct TxToken<'a> {
-    lower: Rc<RefCell<VirtualTunInterface<'a>>>,
+pub struct TxToken {
+    lower: Rc<RefCell<VirtualTunInterface>>,
 }
 
-impl<'a> phy::TxToken for TxToken<'a> {
+impl<'a> phy::TxToken for TxToken {
     fn consume<R, F>(self, _timestamp: Instant, len: usize, f: F) -> Result<R>
     where
         F: FnOnce(&mut [u8]) -> Result<R>,
     {
-        let mut lower = self.lower.borrow_mut();
+        let mut lower = self.lower.as_ref().borrow_mut();
         let mut buffer = vec![0; len];
         let result = f(&mut buffer);
         println!("should send NOW packet with size {}", len);
@@ -196,7 +154,7 @@ impl<'a> phy::TxToken for TxToken<'a> {
         //TODO: only if result ok
         //let p = unsafe { CBuffer::from_owning(buffer.as_ptr(), buffer.len()) };
         use std::borrow::BorrowMut;
-        lower.get_mut().packets_from_inside.lock().unwrap().push_back(buffer);
+        lower.packets_from_inside.lock().unwrap().push_back(buffer);
         result
     }
 }

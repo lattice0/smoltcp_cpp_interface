@@ -34,8 +34,9 @@ pub enum SocketType {
     UDP,
 }
 
-pub struct Blob<'a> {
-    pub slice: &'a [u8],
+pub struct Blob {
+    //pub slice: &'a [u8],
+    pub data: Vec<u8>,
     pub start: usize,
     //A pointer do the object (SmolOwner in C++) that owns the data on the slice
     pub pointer_to_owner: *const c_void,
@@ -47,12 +48,12 @@ pub struct Blob<'a> {
     pub pointer_to_destructor: unsafe extern "C" fn(*const c_void) -> u8,
 }
 
-pub struct Packet<'a> {
-    pub blob: Blob<'a>,
+pub struct Packet {
+    pub blob: Blob,
     pub endpoint: Option<IpEndpoint>,
 }
 
-impl<'a> Drop for Blob<'a> {
+impl<'a> Drop for Blob {
     fn drop(&mut self) {
         //println!("blob drop!");
         let f = self.pointer_to_destructor;
@@ -61,18 +62,18 @@ impl<'a> Drop for Blob<'a> {
     }
 }
 
-pub struct SmolSocket<'a> {
+pub struct SmolSocket {
     pub socket_type: SocketType,
     //Socket number inside SmolStack
     pub socket_handle: SocketHandle,
-    pub to_send: Arc<Mutex<VecDeque<Packet<'a>>>>,
+    pub to_send: Arc<Mutex<VecDeque<Packet>>>,
     //If we couldn't send entire packet at once, hold it here for next send
-    current_to_send: Option<Packet<'a>>,
+    current_to_send: Option<Packet>,
     pub received: Arc<Mutex<VecDeque<Vec<u8>>>>,
 }
 
-impl<'a> SmolSocket<'a> {
-    pub fn new(socket_handle: SocketHandle, socket_type: SocketType) -> SmolSocket<'a> {
+impl<'a> SmolSocket {
+    pub fn new(socket_handle: SocketHandle, socket_type: SocketType) -> SmolSocket {
         SmolSocket {
             socket_type: socket_type,
             socket_handle: socket_handle,
@@ -82,7 +83,7 @@ impl<'a> SmolSocket<'a> {
         }
     }
 
-    pub fn send(&mut self, packet: Packet<'a>) -> u8 {
+    pub fn send(&mut self, packet: Packet) -> u8 {
         if packet.endpoint.is_none()
             && (self.socket_type == SocketType::UDP || self.socket_type == SocketType::ICMP)
         {
@@ -151,7 +152,7 @@ where
     pub sockets: SocketSet<'a, 'b, 'c>,
     current_key: usize,
     pub fd: Option<i32>,
-    smol_sockets: HashMap<usize, SmolSocket<'a>>,
+    smol_sockets: HashMap<usize, SmolSocket>,
     pub device: Option<DeviceT>,
     ip_addrs: Option<std::vec::Vec<IpCidr>>,
     default_v4_gw: Option<Ipv4Address>,
@@ -161,7 +162,7 @@ where
     //create a specialized SmolStack for this case only
     packets_from_inside: Option<Arc<Mutex<VecDeque<Vec<u8>>>>>,
     //Since the socket is gonna use the Blob, it's lifetime is the lifetime of the socket
-    packets_from_outside: Option<Arc<Mutex<VecDeque<Blob<'a>>>>>,
+    packets_from_outside: Option<Arc<Mutex<VecDeque<Blob>>>>,
 }
 
 impl<'a, 'b: 'a, 'c: 'a + 'b, DeviceT> SmolStack<'a, 'b, 'c, DeviceT>
@@ -172,7 +173,7 @@ where
         device: DeviceT,
         fd: Option<i32>,
         packets_from_inside: Option<Arc<Mutex<VecDeque<Vec<u8>>>>>,
-        packets_from_outside: Option<Arc<Mutex<VecDeque<Blob<'a>>>>>,
+        packets_from_outside: Option<Arc<Mutex<VecDeque<Blob>>>>,
     ) -> SmolStack<'a, 'b, 'c, DeviceT> {
         let socket_set = SocketSet::new(vec![]);
         let ip_addrs = std::vec::Vec::new();
@@ -241,7 +242,7 @@ where
         }
     }
 
-    pub fn get_smol_socket(&mut self, smol_socket_handle: usize) -> Option<&mut SmolSocket<'a>> {
+    pub fn get_smol_socket(&mut self, smol_socket_handle: usize) -> Option<&mut SmolSocket> {
         let smol_socket = self.smol_sockets.get_mut(&smol_socket_handle);
         smol_socket
     }
@@ -369,23 +370,25 @@ where
                     match packet {
                         Some(packet) => {
                             println!("some packet");
+                            /*
                             use std::str;
-                            if let Ok(s) = str::from_utf8(packet.blob.slice) {
+                            if let Ok(s) = str::from_utf8(packet.blob.data) {
                                 println!("{}", s);
                             }
+                            */
                             //BIG TODO: send from start of packet wherever it is
-                            let bytes_sent = socket.send_slice(packet.blob.slice);
+                            let bytes_sent = socket.send_slice(packet.blob.data.as_slice());
                             match bytes_sent {
                                 Ok(b) => {
                                     println!("sent {} bytes", b);
                                     //Sent less than entire packet, so we must put this packet
                                     //in `smol_socket.current_to_send` so it's returned the next time
                                     //so we can continue sending it
-                                    if b < packet.blob.slice.len() {
+                                    if b < packet.blob.data.len() {
                                         smol_socket.current_to_send = Some(packet);
                                         panic!("TOO BIG!");
-                                        //BIG TODO: put it back in case its not possible to send everything!!!!!
-                                        //BIG TODO: account here FOR HOW MUCH HAVE BEEN READ
+                                    //BIG TODO: put it back in case its not possible to send everything!!!!!
+                                    //BIG TODO: account here FOR HOW MUCH HAVE BEEN READ
 
                                     //0
                                     } else {
@@ -432,7 +435,8 @@ where
                 let mut socket = self.sockets.get::<UdpSocket>(smol_socket.socket_handle);
                 let packet = smol_socket.get_latest_packet().unwrap();
                 //TODO: send correct slice
-                let bytes_sent = socket.send_slice(packet.blob.slice, packet.endpoint.unwrap());
+                let bytes_sent =
+                    socket.send_slice(packet.blob.data.as_slice(), packet.endpoint.unwrap());
                 match bytes_sent {
                     Ok(_) => 0,
                     Err(e) => 1,
@@ -445,7 +449,7 @@ where
         }
     }
 
-    pub fn send(&mut self, packet: Packet<'a>) -> u8 {
+    pub fn send(&mut self, packet: Packet) -> u8 {
         if !packet.endpoint.is_none() {
             //panic?
         }
@@ -467,6 +471,7 @@ where
             //TODO: do I really need to create a scope?
             s = self
                 .packets_from_inside
+                .as_ref()
                 .unwrap()
                 .lock()
                 .unwrap()

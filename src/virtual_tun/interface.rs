@@ -36,7 +36,7 @@ pub struct CBuffer {
     from smoltcp) is templated on Device
 */
 pub enum SmolStackType<'a, 'b: 'a, 'c: 'a + 'b> {
-    VirtualTun(SmolStack<'a, 'b, 'c, VirtualTunDevice<'a>>),
+    VirtualTun(SmolStack<'a, 'b, 'c, VirtualTunDevice>),
     Tun(SmolStack<'a, 'b, 'c, TunDevice>),
 }
 
@@ -104,7 +104,7 @@ impl<'a, 'b: 'a, 'c: 'a + 'b> SmolStackType<'a, 'b, 'c> {
         }
     }
 
-    pub fn get_smol_socket(&mut self, socket_handle_key: usize) -> Option<&mut SmolSocket<'a>> {
+    pub fn get_smol_socket(&mut self, socket_handle_key: usize) -> Option<&mut SmolSocket> {
         match self {
             &mut SmolStackType::VirtualTun(ref mut smol_stack) => {
                 smol_stack.get_smol_socket(socket_handle_key)
@@ -357,10 +357,10 @@ pub extern "C" fn smol_stack_smol_socket_send(
     pointer_to_destructor: unsafe extern "C" fn(*const c_void) -> u8,
 ) -> u8 {
     let smol_socket = smol_stack.get_smol_socket(socket_handle_key);
-    let packet_as_slice = unsafe { slice::from_raw_parts(data, len) };
+    let packet_as_vector = unsafe { Vec::from_raw_parts(data, len, len) };
     let packet = Packet {
         blob: Blob {
-            slice: packet_as_slice,
+            data: packet_as_vector,
             start: 0,
             pointer_to_owner: pointer_to_owner,
             pointer_to_destructor: pointer_to_destructor,
