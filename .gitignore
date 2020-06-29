@@ -7,3 +7,4 @@ smoltcp_openvpn_bridge
 a.out
 core
 smoltcp_httpclient_example
+build/*

@@ -4,7 +4,8 @@
 	"extensions": [
 		"rust-lang.rust",
 		"vadimcn.vscode-lldb",
-		"ms-vscode.cpptools"
+		"ms-vscode.cpptools",
+		"twxs.cmake"
 	],
 	"containerEnv": {
 		"DISPLAY": "unix:0"

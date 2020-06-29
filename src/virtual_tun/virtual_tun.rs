@@ -15,16 +15,13 @@ use smoltcp::{Error, Result};
 
 use std::isize;
 use std::ops::Deref;
-use std::slice; //, DerefMut };
+use std::slice;
 
 
 /// A virtual TUN interface.
 //#[derive(Debug)]
 #[derive(Clone)]
 pub struct VirtualTunInterface {
-    //lower:  Rc<RefCell<sys::VirtualTunInterfaceDesc>>,
-    //put lower with transmit capabilities here? I think no lower is needed, only internally used
-    //lower:
     mtu: usize,
     packets_from_inside: Arc<Mutex<VecDeque<Vec<u8>>>>,
     packets_from_outside: Arc<Mutex<VecDeque<Blob>>>,
@@ -41,24 +38,7 @@ impl<'a> VirtualTunInterface {
         packets_from_inside: Arc<Mutex<VecDeque<Vec<u8>>>>,
         packets_from_outside: Arc<Mutex<VecDeque<Blob>>>,
     ) -> Result<VirtualTunInterface> {
-        /*
-        //let mut lower = sys::VirtualTunInterfaceDesc::new(name)?;
-        //lower.attach_interface()?;
-        //todo: 1500 is the right size?
-        let mtu = 1500; //= lower.interface_mtu()?;
-                        //ip packet example
-        let packet1: &[u8] = &[
-            69, 0, 0, 72, 203, 203, 64, 0, 64, 17, 163, 146, 192, 168, 255, 18, 10, 139, 1, 1, 221,
-            255, 0, 53, 0, 52, 174, 21, 221, 124, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 6, 99, 104, 97,
-            116, 45, 48, 4, 99, 111, 114, 101, 10, 107, 101, 121, 98, 97, 115, 101, 97, 112, 105,
-            3, 99, 111, 109, 0, 0, 28, 0, 1,
-        ];
-
-        let mut v1: VecDeque<CBuffer> = VecDeque::new();
-        let v2: VecDeque<CBuffer> = VecDeque::new();
-        let c1 = unsafe { CBuffer::from_owning(packet1.as_ptr(), packet1.len()) };
-        v1.push_back(c1.unwrap());
-        */
+        
         let mtu = 1500; //??
         Ok(VirtualTunInterface {
             mtu: mtu,
@@ -70,12 +50,6 @@ impl<'a> VirtualTunInterface {
     fn recv(&mut self, buffer: &mut [u8]) -> core::result::Result<usize, u32> {
         match self.packets_from_outside.lock().unwrap().pop_front() {
             Some(packet) => {
-                /*
-                let buffer_packet = packet.deref();
-                for (dst, src) in buffer.iter_mut().zip(buffer_packet) {
-                    *dst = *src
-                }
-                */
                 buffer.copy_from_slice(packet.data.as_slice());
                 Ok(packet.data.len())
             }
@@ -149,10 +123,6 @@ impl<'a> phy::TxToken for TxToken {
         let mut buffer = vec![0; len];
         let result = f(&mut buffer);
         println!("should send NOW packet with size {}", len);
-        //lower.send(&buffer[..]).unwrap();
-        //TODO: unwrap here?
-        //TODO: only if result ok
-        //let p = unsafe { CBuffer::from_owning(buffer.as_ptr(), buffer.len()) };
         use std::borrow::BorrowMut;
         lower.packets_from_inside.lock().unwrap().push_back(buffer);
         result
