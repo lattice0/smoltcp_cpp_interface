@@ -1,11 +1,14 @@
 cmake_minimum_required (VERSION 3.10)
-project(CargoTest LANGUAGES CXX)
+project(libsmoltcp_cpp LANGUAGES CXX)
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake-cargo/cmake")
-set(CARGO_DEV_MODE ON CACHE INTERNAL "")
+include_directories(src/virtual_tun)
+file(GLOB libsmoltcp_cpp_sources "src/virtual_tun/interface.cpp")
 
-include(Cargo)
+add_library(libsmoltcp_cpp ${libsmoltcp_cpp_sources})
+add_library(lsmoltcp_cpp_interface_rust SHARED IMPORTED)
 
-add_crate(Cargo.toml)
+set_target_properties(lsmoltcp_cpp_interface_rust PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/target/debug/libsmoltcp_cpp_interface_rust.so)
 
-#add_subdirectory(test)
+add_executable(http_smol_tcp_example examples/http_smol_tcp_example)
+
+target_link_libraries(http_smol_tcp_example libsmoltcp_cpp lsmoltcp_cpp_interface_rust)
