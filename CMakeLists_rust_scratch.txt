@@ -1,0 +1,12 @@
+cmake_minimum_required (VERSION 3.12)
+project(CargoTest LANGUAGES CXX)
+
+#set(CMAKE_C_COMPILER "/usr/bin/clang-6.0")
+#set(CMAKE_CXX_COMPILER "/usr/bin/clang++-6.0")
+
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake-cargo/cmake")
+set(CARGO_DEV_MODE ON CACHE INTERNAL "")
+
+include(Cargo)
+
+add_crate(Cargo.toml)
