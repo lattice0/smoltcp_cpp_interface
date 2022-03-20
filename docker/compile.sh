@@ -1,0 +1,1 @@
+sudo docker run -v $PWD/..:/home/project libsmoltcp_cpp_compiler /bin/bash -c "mkdir build && cd build && cmake .. && make && make install"

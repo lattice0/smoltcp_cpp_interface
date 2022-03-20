@@ -1,0 +1,32 @@
+[package]
+name = "smoltcp_cpp_interface_rust"
+version = "0.1.0"
+authors = [""]
+edition = "2018"
+
+[dependencies]
+log = { version = "0.4.4", default-features = false, optional = true }
+libc = { version = "0.2.18", optional = true }
+rand = { version = "0.3" }
+smoltcp = {git = "https://github.com/smoltcp-rs/smoltcp/", branch="ip-interface-alt-managed"}
+#smoltcp = { path = "../../smoltcp_merge/smoltcp" }
+#managed = { git = "https://github.com/smoltcp-rs/rust-managed", features = ["map"] }
+
+[dev-dependencies]
+env_logger = "0.5"
+getopts = "0.2"
+rand = "0.3"
+url = "1.0"
+log = "0.4.4"
+
+
+[lib]
+crate-type=["cdylib", "staticlib"]
+
+[[example]]
+name = "virtual_tun_http"
+required-features = ["log"]
+
+[[example]]
+name = "lab"
+required-features = ["log"]

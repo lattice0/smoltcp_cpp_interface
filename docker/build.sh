@@ -1,0 +1,1 @@
+sudo docker build -t libsmoltcp_cpp_compiler .
